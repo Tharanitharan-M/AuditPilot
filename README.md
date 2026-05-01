@@ -80,9 +80,7 @@ Plus four community MCP servers (forked, security-reviewed) for read-only OAuth 
 
 Currently in Sprint 0 (week of May 1, 2026): documentation, ADRs, and repo scaffold. Sprint 0 is complete — twelve ADRs, full system design, thirty-three user stories.
 
-Full build runs May through July 2026 across eleven sprints. Public demo URL target: July 1, 2026. See [`PLAN.md`](PLAN.md) for the complete sprint breakdown.
-
-For an honest critical analysis of the design (what is weak, what was deferred, what would change in v2), maintainers can read `decisions/SYSTEM_DESIGN_RATIONALE.md` (gitignored).
+Full build runs May through July 2026 across eleven sprints. Public demo URL target: July 1, 2026.
 
 ---
 

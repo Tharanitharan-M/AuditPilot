@@ -28,7 +28,7 @@ These rules are enforced by CI and reviewed by maintainers. PRs that violate the
 5. **Apache 2.0 license on every new file.** Never AGPLv3.
 6. **Pydantic v2 everywhere.** `model_config = ConfigDict(extra="forbid")` on every public schema.
 7. **AICPA language guard.** Never write `audit`, `attest`, `certify`, or `SOC 2 report` without a `draft`, `readiness`, or `reference architecture` qualifier. CI runs the compliance check on every PR.
-8. **No personal or career framing in public files.** The `.private/` directory is gitignored and is the only place for that content.
+8. **No personal or career framing in public files.** Keep it out of public files entirely.
 
 ---
 
@@ -44,7 +44,7 @@ These rules are enforced by CI and reviewed by maintainers. PRs that violate the
 
 ```bash
 cp .env.example .env        # fill in required values
-docker compose up -d db redis
+docker compose up -d postgres redis
 pnpm install
 pnpm -r build
 ```
@@ -56,7 +56,7 @@ See [`docs/runbooks/local-dev.md`](./docs/runbooks/local-dev.md) (Sprint 11) for
 ## Branch and PR conventions
 
 - Branch off `main`. Name your branch `feat/<slug>`, `fix/<slug>`, or `chore/<slug>`.
-- One logical change per PR. Link the relevant PLAN.md chunk ID in the PR description.
+- One logical change per PR. Describe the feature area and relevant ADR or sprint in the PR description.
 - Every PR must pass all four CI workflows: `lint`, `test`, `eval`, `deploy` (dry run).
 - The `eval` workflow blocks merge on a regression > 2% in any category (active from Sprint 10).
 
@@ -71,7 +71,7 @@ feat(scope): subject under 72 chars
 
 optional body, wrap at 72 chars
 
-Refs: PLAN.md chunk N.M, ADR-NNNN
+Refs: ADR-NNNN
 ```
 
 Types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `perf`, `ci`.
@@ -80,7 +80,7 @@ Types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `perf`, `ci`.
 
 ## Adding a new MCP server
 
-Use the `/mcp-scaffold <name>` slash command (requires Claude Code). Check the five sanctioned server names in `CLAUDE.md`. Write an ADR before scaffolding a sixth.
+The five sanctioned server names are: `compliance-kb-mcp`, `evidence-store-mcp`, `questionnaire-mcp`, `policy-template-mcp`, `drift-watcher-mcp`. Write an ADR before adding a sixth.
 
 ---
 
