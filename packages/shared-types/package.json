@@ -1,0 +1,13 @@
+{
+  "name": "@auditpilot/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared TypeScript types for AuditPilot (web + API response shapes)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "echo 'shared-types placeholder — types ship in Sprint 2'",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts"
+  }
+}

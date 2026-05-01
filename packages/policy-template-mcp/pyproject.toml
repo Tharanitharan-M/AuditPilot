@@ -1,0 +1,49 @@
+[project]
+name = "policy-template-mcp"
+version = "0.1.0"
+description = "Policy template rendering MCP server — IRP, Access Control, Change Management, Vendor Management. AuditPilot MCP server."
+license = { text = "Apache-2.0" }
+authors = [{ name = "Tharanitharan M", email = "tharanimtharan@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["mcp", "model-context-protocol", "auditpilot", "compliance", "soc2", "policy"]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+  "mcp>=1.0",
+  "pydantic>=2.0",
+  "fastmcp>=0.3",
+  "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.6",
+  "mypy>=1.10",
+]
+
+[project.scripts]
+policy-template-mcp = "policy_template_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/Tharanitharan-M/auditpilot"
+Repository = "https://github.com/Tharanitharan-M/policy-template-mcp"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

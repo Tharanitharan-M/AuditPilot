@@ -1,0 +1,127 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Only one deploy runs at a time; cancel in-progress if a new push lands.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Build validation (runs now) ────────────────────────────────────────────
+  build-check:
+    name: Build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build TypeScript packages
+        run: pnpm -r build
+
+  # ── Cloud Run — api (Sprint 2+) ────────────────────────────────────────────
+  deploy-api:
+    name: Deploy api → Cloud Run
+    needs: build-check
+    runs-on: ubuntu-latest
+    # Gate: only deploy when the FastAPI app exists
+    if: ${{ hashFiles('apps/api/main.py') != '' || hashFiles('apps/api/src/**') != '' }}
+
+    permissions:
+      contents: read
+      id-token: write   # Workload Identity Federation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          gcloud builds submit \
+            --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/auditpilot-api:${{ github.sha }} \
+            --dockerfile apps/api/Dockerfile \
+            --target production \
+            .
+
+      # THE USER RUNS THE ACTUAL DEPLOY COMMAND.
+      # This step produces the command; a maintainer approves and runs it.
+      # See docs/runbooks/deploy.md (Sprint 11).
+      - name: Print deploy command (maintainer runs manually)
+        run: |
+          echo "Run this to deploy:"
+          echo "gcloud run deploy auditpilot-api \\"
+          echo "  --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/auditpilot-api:${{ github.sha }} \\"
+          echo "  --region us-central1 \\"
+          echo "  --platform managed \\"
+          echo "  --allow-unauthenticated"
+
+  # ── Cloud Run — auditor (Sprint 8+) ───────────────────────────────────────
+  deploy-auditor:
+    name: Deploy auditor → Cloud Run
+    needs: build-check
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('apps/auditor/main.py') != '' || hashFiles('apps/auditor/src/**') != '' }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          gcloud builds submit \
+            --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/auditpilot-auditor:${{ github.sha }} \
+            --dockerfile apps/auditor/Dockerfile \
+            --target production \
+            .
+
+      - name: Print deploy command (maintainer runs manually)
+        run: |
+          echo "Run this to deploy:"
+          echo "gcloud run deploy auditpilot-auditor \\"
+          echo "  --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/auditpilot-auditor:${{ github.sha }} \\"
+          echo "  --region us-central1 \\"
+          echo "  --platform managed \\"
+          echo "  --no-allow-unauthenticated"
+
+  # ── Vercel — web (Sprint 3+) ───────────────────────────────────────────────
+  # Vercel deploys automatically on push via its GitHub integration.
+  # This job is a documentation placeholder; no action is needed here.
+  deploy-web-note:
+    name: Web deploy (Vercel auto)
+    needs: build-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vercel handles web deploys automatically
+        run: echo "Vercel deploys apps/web automatically on push to main via GitHub integration."

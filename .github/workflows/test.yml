@@ -1,0 +1,124 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-python:
+    name: Pytest (Python)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: auditpilot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgres://postgres:postgres@localhost:5432/auditpilot_test"
+      REDIS_URL: "redis://localhost:6379/0"
+      ENVIRONMENT: "test"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Test — apps/api
+        if: hashFiles('apps/api/tests/**') != ''
+        run: |
+          cd apps/api
+          uv pip install --system -e ".[dev]"
+          pytest tests/ --tb=short -q
+
+      - name: Test — apps/auditor
+        if: hashFiles('apps/auditor/tests/**') != ''
+        run: |
+          cd apps/auditor
+          uv pip install --system -e ".[dev]"
+          pytest tests/ --tb=short -q
+
+      - name: Test — compliance-kb-mcp
+        if: hashFiles('packages/compliance-kb-mcp/tests/**') != ''
+        run: |
+          cd packages/compliance-kb-mcp
+          uv pip install --system -e ".[dev]"
+          pytest tests/ --tb=short -q
+
+      - name: Test — evidence-store-mcp
+        if: hashFiles('packages/evidence-store-mcp/tests/**') != ''
+        run: |
+          cd packages/evidence-store-mcp
+          uv pip install --system -e ".[dev]"
+          pytest tests/ --tb=short -q
+
+      - name: Test — questionnaire-mcp
+        if: hashFiles('packages/questionnaire-mcp/tests/**') != ''
+        run: |
+          cd packages/questionnaire-mcp
+          uv pip install --system -e ".[dev]"
+          pytest tests/ --tb=short -q
+
+      - name: Test — policy-template-mcp
+        if: hashFiles('packages/policy-template-mcp/tests/**') != ''
+        run: |
+          cd packages/policy-template-mcp
+          uv pip install --system -e ".[dev]"
+          pytest tests/ --tb=short -q
+
+      - name: Test — drift-watcher-mcp
+        if: hashFiles('packages/drift-watcher-mcp/tests/**') != ''
+        run: |
+          cd packages/drift-watcher-mcp
+          uv pip install --system -e ".[dev]"
+          pytest tests/ --tb=short -q
+
+  test-typescript:
+    name: Vitest (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Vitest — web (Sprint 3+)
+        if: hashFiles('apps/web/vitest.config.*') != ''
+        run: pnpm --filter web test
+        continue-on-error: true   # placeholder until Sprint 3

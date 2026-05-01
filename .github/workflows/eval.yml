@@ -1,0 +1,60 @@
+name: Eval
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/agents/**"
+      - "apps/api/agents/prompts/**"
+      - "packages/compliance-kb-mcp/src/**"
+      - "packages/evidence-store-mcp/src/**"
+      - "packages/questionnaire-mcp/src/**"
+      - "packages/policy-template-mcp/src/**"
+      - "packages/drift-watcher-mcp/src/**"
+      - "packages/eval-harness/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api/agents/**"
+      - "apps/api/agents/prompts/**"
+      - "packages/*/src/**"
+      - "packages/eval-harness/**"
+
+jobs:
+  eval:
+    name: Promptfoo Eval Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Sprint 10 activates this gate ──────────────────────────────────────
+      # Until docs/evals/gold/ exists with >= 100 labeled cases, the eval
+      # workflow runs in no-op / placeholder mode and always passes.
+      # Remove the 'if' condition and 'echo placeholder' line in Sprint 10.
+      - name: Run Promptfoo eval (placeholder until Sprint 10)
+        if: hashFiles('packages/eval-harness/promptfooconfig.yaml') != ''
+        run: pnpm --filter @auditpilot/eval-harness eval:ci
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+
+      - name: Placeholder (Sprint 10 will replace this)
+        if: hashFiles('packages/eval-harness/promptfooconfig.yaml') == ''
+        run: echo "Eval gold set not yet populated — placeholder passes. Activate in Sprint 10."
+
+      # ── Judge validation (Sprint 10) ───────────────────────────────────────
+      # Thresholds: TPR >= 0.85, TNR >= 0.85, Cohen's kappa >= 0.70
+      # Blocked on: docs/evals/judge_validation/ (hand-labeled by maintainer)

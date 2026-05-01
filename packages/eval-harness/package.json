@@ -1,0 +1,11 @@
+{
+  "name": "@auditpilot/eval-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Promptfoo eval harness for AuditPilot — control-mapping, citation faithfulness, policy structure, questionnaire judge",
+  "scripts": {
+    "build": "echo 'eval-harness has no build step'",
+    "eval": "promptfoo eval",
+    "eval:ci": "promptfoo eval --ci"
+  }
+}

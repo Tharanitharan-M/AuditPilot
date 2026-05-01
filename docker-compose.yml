@@ -1,0 +1,131 @@
+services:
+  # ── Postgres 16 + pgvector ──────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: auditpilot-postgres-1
+    ports:
+      - "127.0.0.1:5432:5432"        # bind to localhost only — never expose to 0.0.0.0
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: auditpilot_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./apps/api/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # ── Redis 7 ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: auditpilot-redis-1
+    ports:
+      - "127.0.0.1:6379:6379"        # bind to localhost only
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── FastAPI orchestration backend ───────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    container_name: auditpilot-api-1
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages:/app/packages
+    env_file:
+      - path: .env
+        required: false           # .env is optional; copy from .env.example first
+    environment:
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/auditpilot_dev"
+      REDIS_URL: "redis://redis:6379/0"
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  # ── AdversarialAuditor service ───────────────────────────────────────────────
+  auditor:
+    build:
+      context: .
+      dockerfile: apps/auditor/Dockerfile
+      target: dev
+    container_name: auditpilot-auditor-1
+    ports:
+      - "8001:8001"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  # ── Next.js 15 frontend ──────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    container_name: auditpilot-web-1
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/web:/app/apps/web
+      - ./packages:/app/packages
+      - /app/node_modules
+      - /app/apps/web/.next
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NEXT_PUBLIC_API_URL: "http://api:8000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ── Self-hosted Langfuse (opt-in) ────────────────────────────────────────────
+  langfuse:
+    image: langfuse/langfuse:3
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/langfuse"
+      NEXTAUTH_SECRET: devsecret
+      NEXTAUTH_URL: "http://localhost:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - langfuse                       # opt-in: docker compose --profile langfuse up
+
+volumes:
+  pgdata:
+  redisdata:

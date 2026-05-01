@@ -1,0 +1,49 @@
+[project]
+name = "drift-watcher-mcp"
+version = "0.1.0"
+description = "Compliance drift detection MCP server — snapshot diff, normalized projection, 2-scan flap protection. AuditPilot MCP server."
+license = { text = "Apache-2.0" }
+authors = [{ name = "Tharanitharan M", email = "tharanimtharan@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["mcp", "model-context-protocol", "auditpilot", "compliance", "soc2", "drift"]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+  "mcp>=1.0",
+  "pydantic>=2.0",
+  "fastmcp>=0.3",
+  "psycopg[binary]>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.6",
+  "mypy>=1.10",
+]
+
+[project.scripts]
+drift-watcher-mcp = "drift_watcher_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/Tharanitharan-M/auditpilot"
+Repository = "https://github.com/Tharanitharan-M/drift-watcher-mcp"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,64 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-python:
+    name: Ruff (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install ruff
+        run: uv pip install --system ruff
+
+      - name: Ruff check — apps/api
+        run: ruff check apps/api/
+
+      - name: Ruff check — apps/auditor
+        run: ruff check apps/auditor/
+
+      - name: Ruff check — packages (MCP servers)
+        run: |
+          for pkg in packages/compliance-kb-mcp packages/evidence-store-mcp packages/questionnaire-mcp packages/policy-template-mcp packages/drift-watcher-mcp; do
+            if [ -d "$pkg/src" ]; then
+              ruff check "$pkg/src/"
+            fi
+          done
+
+  lint-typescript:
+    name: ESLint + Prettier (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck — shared-types
+        run: pnpm --filter @auditpilot/shared-types typecheck
+
+      - name: Typecheck — web (Sprint 3+)
+        if: hashFiles('apps/web/tsconfig.json') != ''
+        run: pnpm --filter web typecheck
+        continue-on-error: true   # placeholder until Sprint 3

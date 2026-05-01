@@ -1,0 +1,14 @@
+{
+  "name": "web",
+  "version": "0.0.1",
+  "private": true,
+  "description": "AuditPilot frontend — Next.js 15 + AI SDK 6 + shadcn/ui",
+  "scripts": {
+    "dev": "next dev",
+    "build": "echo 'web placeholder — Next.js app ships in Sprint 3'",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}
