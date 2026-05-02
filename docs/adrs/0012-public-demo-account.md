@@ -30,7 +30,7 @@ Concretely:
 
 1. Landing page has two CTAs: "Sign up" (normal flow) and "Try the demo" (special).
 2. "Try the demo" signs the visitor in as the demo user (`demo@auditpilot.dev`) using a pre-issued JWT — no sign-up, no OAuth.
-3. The demo user's account contains a curated seed: 64 controls populated with mixed PASSING / FAILING / NOT_ASSESSED states, sample evidence, sample Pending Actions, one drafted Incident Response Plan, one filled SIG-Lite questionnaire, one mock readiness challenge gap report.
+3. The demo user's account contains a curated seed: every SOC 2 TSC clause in the curated `compliance-kb-mcp` mapping (ADR-0013) populated with mixed PASSING / FAILING / NOT_ASSESSED states keyed off the underlying NIST 800-53 controls, sample evidence, sample Pending Actions, one drafted Incident Response Plan, one filled SIG-Lite questionnaire, one mock readiness challenge gap report.
 4. Visitors share the same demo state. Two simultaneous visitors see the same Pending Actions queue.
 5. A persistent banner at the top reads: "This is the public demo. State is shared with all visitors. Click [Reset demo] to restore the seed, or [Sign up] for your own account."
 6. The "Reset demo" button is in the banner. Anyone can click it. It clears the demo user's mutable data (actions completed, policies approved, questionnaire edits) and reloads the seed.
@@ -66,7 +66,7 @@ The video is still on the landing page (it satisfies the visitor who has 30 seco
 Auto-reset on each entry would make the visitor experience consistent. Reasons against:
 
 1. **Race conditions.** Visitor A is mid-demo when Visitor B clicks "Try the demo" and triggers a reset. A's session breaks.
-2. **The reset is heavy.** Resetting 64 controls + ~50 evidence rows + ~10 actions + ~3 policies + ~1 questionnaire is a 200ms operation that fights with whatever scan or HITL session a current visitor has open.
+2. **The reset is heavy.** Resetting the seeded TSC clauses + ~50 evidence rows + ~10 actions + ~3 policies + ~1 questionnaire is a 200ms operation that fights with whatever scan or HITL session a current visitor has open.
 3. **The cron handles the worst case.** If state gets too messy for any visitor to make sense of, the next 03:00 UTC cron cleans it up. The reset button is the manual override.
 
 ### Why no real OAuth for the demo account
@@ -162,7 +162,7 @@ Vercel Cron at `0 3 * * *` calls `POST /api/demo/reset` with the cron token. The
 
 `apps/api/seeds/demo_seed.sql` contains the curated dataset. ~200 lines. Hand-authored to show the most demo-relevant features:
 
-- 64 controls with realistic mixed status (e.g. 38 PASSING, 18 NOT_ASSESSED, 8 FAILING)
+- Every SOC 2 TSC clause in the curated `compliance-kb-mcp` mapping (ADR-0013) populated with realistic mixed status (e.g. 38 PASSING, 18 NOT_ASSESSED, 8 FAILING) keyed off the supporting NIST 800-53 controls
 - 6 Pending Actions with drafted fix text
 - 1 fully-drafted Incident Response Plan in approved state
 - 1 partially-filled SIG-Lite questionnaire (78/128 cells auto-filled)

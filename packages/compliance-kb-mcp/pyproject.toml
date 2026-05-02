@@ -1,30 +1,41 @@
 [project]
 name = "compliance-kb-mcp"
-version = "0.1.0"
-description = "SOC 2 TSC knowledge base MCP server — 64 controls, BM25 search, pgvector hybrid. AuditPilot MCP server."
+version = "0.2.0"
+description = "NIST SP 800-53 Rev 5 knowledge-base MCP server with SOC 2 TSC mappings and BM25 search."
 license = { text = "Apache-2.0" }
 authors = [{ name = "Tharanitharan M", email = "tharanimtharan@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
-keywords = ["mcp", "model-context-protocol", "auditpilot", "compliance", "soc2"]
+keywords = [
+  "mcp",
+  "model-context-protocol",
+  "auditpilot",
+  "compliance",
+  "nist-800-53",
+  "soc2",
+]
 classifiers = [
+  "Programming Language :: Python :: 3",
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 
 dependencies = [
   "mcp>=1.0",
   "pydantic>=2.0",
-  "fastmcp>=0.3",
 ]
 
 [project.optional-dependencies]
 dev = [
+  "build>=1.2",
   "pytest>=8.0",
   "pytest-asyncio>=0.23",
   "ruff>=0.6",
   "mypy>=1.10",
+  "twine>=5.0",
 ]
 
 [project.scripts]
@@ -32,15 +43,31 @@ compliance-kb-mcp = "compliance_kb_mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/Tharanitharan-M/auditpilot"
-Repository = "https://github.com/Tharanitharan-M/compliance-kb-mcp"
+Repository = "https://github.com/Tharanitharan-M/auditpilot"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/compliance_kb_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/compliance_kb_mcp",
+  "tests",
+  "scripts",
+  "README.md",
+  "CHANGELOG.md",
+  "LICENSE",
+  "package.json",
+]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]

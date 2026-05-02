@@ -1,16 +1,16 @@
 # ADR-0005: Five Published MCP Servers
 
 **Date:** 2026-05-01
-**Status:** Accepted
+**Status:** Accepted (control catalog choice updated by ADR-0013, 2026-05-02)
 **Deciders:** AuditPilot maintainers
-**Refs:** SRS CON-008; PRD §6.1; PLAN.md Sprints 1, 5, 7; CLAUDE.md stack pins
+**Refs:** SRS CON-008; PRD §6.1; PLAN.md Sprints 1, 5, 7; ADR-0013; CLAUDE.md stack pins
 
 ---
 
 ## Context and Problem Statement
 
 AuditOrchestrator needs access to five distinct tool domains:
-1. SOC 2 control knowledge (the AICPA Trust Services Criteria taxonomy and control descriptions)
+1. Security and privacy control knowledge — the canonical NIST SP 800-53 Rev 5 catalog (public domain) annotated with curated SOC 2 Trust Services Criteria mappings. See ADR-0013 for the catalog-choice rationale.
 2. Evidence storage and retrieval (collected GitHub, Gmail, Slack, Calendar evidence with pgvector embeddings)
 3. Security questionnaire parsing and clustering (SIG-Lite XLSX ingestion)
 4. Policy template generation (structured policy document templates with control citations)
@@ -23,7 +23,7 @@ Options for providing these tools: direct Python function calls, a single monoli
 ## Decision
 
 **Author and publish five standalone MCP servers:**
-- `compliance-kb-mcp` — SOC 2 TSC knowledge base (64 controls, lookup + semantic search)
+- `compliance-kb-mcp` — NIST SP 800-53 Rev 5 control catalog (324 base controls, public domain) with curated SOC 2 TSC mappings; exposes `lookup_control`, `lookup_by_soc2_tsc`, `search_controls`, and `list_controls` tools (ADR-0013)
 - `evidence-store-mcp` — evidence storage and retrieval with pgvector hybrid search
 - `questionnaire-mcp` — SIG-Lite XLSX parser, question clustering, and answer scaffolding
 - `policy-template-mcp` — policy template generation grounded in control posture

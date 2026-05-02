@@ -21,7 +21,7 @@ This Software Requirements Specification (SRS) defines the functional requiremen
 
 AuditPilot v1.0 covers:
 - GitHub read-only connector + automated evidence collection
-- SOC 2 Trust Services Criteria (TSC) control mapping (64 controls, CC1–CC9)
+- SOC 2 Trust Services Criteria (TSC) control mapping, grounded in the canonical NIST SP 800-53 Rev 5 catalog with curated TSC mappings (ADR-0013)
 - Draft policy generation with human review gate
 - SIG-Lite questionnaire auto-fill
 - Adversarial mock readiness challenge (AdversarialAuditor via A2A v1.0)
@@ -34,7 +34,8 @@ Out of scope for v1.0: write API calls to any source tool, ISO 27001 / HIPAA / P
 
 | Term | Definition |
 |---|---|
-| TSC | Trust Services Criteria — the SOC 2 control framework published by AICPA |
+| TSC | Trust Services Criteria — the SOC 2 control framework published by AICPA. Used as the presentation framework over the NIST 800-53 catalog per ADR-0013 |
+| NIST 800-53 | NIST Special Publication 800-53 Revision 5 — the public-domain U.S. federal control catalog used as the authoritative source for canonical control text in `compliance-kb-mcp` (ADR-0013) |
 | MCP | Model Context Protocol (spec 2025-11-25) — the tool integration protocol |
 | HITL | Human-in-the-loop — a required human approval step before AI output is delivered |
 | Pending Action | A card in the dashboard queue containing a suggested fix the human applies in the source tool |
@@ -76,14 +77,14 @@ Requirements are grouped by functional area. Priority: **M** = Must (v1), **S** 
 
 | ID | Priority | Requirement | Acceptance condition |
 |---|---|---|---|
-| FR-015 | M | AuditOrchestrator shall map each collected evidence item to SOC 2 TSC controls via `compliance-kb-mcp` | Each evidence item linked to one or more `control_id` values in the control map |
+| FR-015 | M | AuditOrchestrator shall map each collected evidence item to SOC 2 TSC clauses via `compliance-kb-mcp`, using the canonical NIST SP 800-53 Rev 5 catalog as the underlying control authority and the curated TSC mappings to surface satisfied TSC IDs (ADR-0013) | Each evidence item linked to one or more TSC `control_id` values in the control map; the supporting NIST 800-53 base IDs are recorded in `nist_800_53_refs` |
 | FR-016 | M | Each control assessment shall produce a structured result: `{control_id, status, confidence, evidence_refs, gap_description}` | `state.control_map` round-trips via `model_dump()` / `model_validate()` without data loss |
 | FR-017 | M | Control status shall be one of four values: `PASSING` / `FAILING` / `NOT_ASSESSED` / `NOT_APPLICABLE` | Any other value raises a Pydantic `ValidationError` |
 | FR-018 | M | Evidence records shall persist to Postgres with fields: `source_type`, `source_uri`, `raw_content`, `embedding` (pgvector), `content_hash`, `valid_until` | `SELECT count(*) FROM evidence` increases after a scan run |
 | FR-019 | M | System shall cache control-mapping LLM decisions keyed on `(content_hash, control_id)` | Second scan of identical evidence does not emit a new LLM call; verified via Langfuse trace showing zero new spans for cached controls |
 | FR-020 | M | Evidence collection shall execute concurrently across multiple controls using Python `asyncio.gather` | Langfuse trace shows overlapping spans for at least two MCP tool calls |
 | FR-021 | M | Every AuditOrchestrator invocation shall emit a complete OpenTelemetry trace to Langfuse | Each `/chat` request produces a trace visible in Langfuse within 30 seconds |
-| FR-022 | M | The control map shall cover all 64 SOC 2 Trust Services Criteria (CC1.1 through CC9.9) | `len(state.control_map) == 64` after a complete scan |
+| FR-022 | M | The control map shall cover the SOC 2 Trust Services Criteria clauses present in the curated `compliance-kb-mcp` mapping (Common Criteria CC1.1 – CC9.2 plus Availability A1.x, Confidentiality C1.x, Processing Integrity PI1.x, Privacy P1.x; ≈64 clauses for v1) | `len(state.control_map) >= 50` after a complete scan; every entry's `control_id` matches the SOC 2 TSC pattern |
 
 ### 2.4 Policy Drafting
 

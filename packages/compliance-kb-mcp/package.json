@@ -1,0 +1,48 @@
+{
+  "name": "@auditpilot/compliance-kb-mcp",
+  "version": "0.2.0",
+  "description": "NIST SP 800-53 Rev 5 knowledge-base MCP server (324 controls) with SOC 2 TSC mappings and BM25 search.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "index.js",
+  "module": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": "./index.js"
+  },
+  "bin": {
+    "compliance-kb-mcp": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "node -e \"console.log('compliance-kb-mcp: no npm build step')\"",
+    "lint": "node -e \"console.log('compliance-kb-mcp: no npm lint step')\"",
+    "test": "node -e \"console.log('compliance-kb-mcp: tests run with pytest')\"",
+    "typecheck": "node -e \"console.log('compliance-kb-mcp: type checks run with mypy')\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tharanitharan-M/auditpilot.git"
+  },
+  "homepage": "https://github.com/Tharanitharan-M/auditpilot",
+  "bugs": {
+    "url": "https://github.com/Tharanitharan-M/auditpilot/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "nist-800-53",
+    "soc2",
+    "auditpilot",
+    "compliance"
+  ]
+}

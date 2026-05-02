@@ -16,7 +16,7 @@
 | US-003 | Run first readiness scan | Maya | JTBD-1 | Sprint 4 | Automated control evidence collection |
 | US-004 | Disconnect a connector | Maya | JTBD-1 | Sprint 3 | GitHub read-only connector |
 | US-005 | See connection status on dashboard | Maya | JTBD-1 | Sprint 3 | Dashboard surface |
-| US-006 | View the 64-control posture grid | Maya | JTBD-1 | Sprint 4 | Control posture grid |
+| US-006 | View the SOC 2 TSC posture grid | Maya | JTBD-1 | Sprint 4 | Control posture grid |
 | US-007 | Triage Pending Actions queue | Maya | JTBD-7 | Sprint 4 | Pending Actions queue |
 | US-008 | Inspect a Langfuse trace from a scan | Maya | JTBD-5 | Sprint 9 | Langfuse trace observability |
 | US-009 | See published eval metrics | Maya | JTBD-5 | Sprint 10 | Promptfoo eval suite with judge validation |
@@ -166,7 +166,7 @@ Read-only-by-design is the architectural identity of the project (ADR-0004). Sho
 
 **As** Maya, having just connected GitHub
 **I want** to click "Run readiness scan" and see the orchestrator collect evidence and map it to SOC 2 controls in real time
-**So that** within one session I know which of 64 Trust Services Criteria controls I satisfy and which are gaps
+**So that** within one session I know which SOC 2 Trust Services Criteria clauses I satisfy and which are gaps (the underlying NIST 800-53 controls are surfaced in the detail panel per ADR-0013)
 
 ### Acceptance criteria (Gherkin)
 
@@ -175,7 +175,7 @@ GIVEN I have a connected GitHub connector and no prior scan_run
 WHEN I click "Run readiness scan" on the dashboard
 THEN an SSE connection opens to POST /chat with intent="run_readiness_scan"
 AND tool-call cards (compliance-kb-mcp.search_controls, GitHub MCP get_branch_protection, etc.) stream in within 3 seconds
-AND the 64-control posture grid populates progressively as control mapping completes
+AND the SOC 2 TSC posture grid populates progressively as control mapping completes (clauses backed by NIST 800-53 controls per ADR-0013)
 
 GIVEN a scan is running
 WHEN the orchestrator finishes the control map
@@ -221,7 +221,7 @@ This is the headline flow. JTBD-1 in PRD §3. If first-time-to-control-grid is f
 ### Definition of done
 
 - [ ] All three acceptance criteria pass
-- [ ] Auto test: integration test with mocked GitHub MCP and mocked LLM verifies orchestrator state contains 64 control_map rows
+- [ ] Auto test: integration test with mocked GitHub MCP and mocked LLM verifies orchestrator state contains a `control_map` row for every active SOC 2 TSC clause (TSC clauses sourced from `compliance-kb-mcp.lookup_by_soc2_tsc` per ADR-0013)
 - [ ] Manual test: connect a real GitHub org, click "Run readiness scan", verify within 30 seconds the grid populates
 - [ ] Langfuse trace shows the full orchestrator span tree
 - [ ] OpenTelemetry custom metric `orchestrator.scan.duration_ms` emitted to Grafana
@@ -329,28 +329,28 @@ When evidence becomes stale, control posture decisions become stale. A user who 
 
 ---
 
-## US-006: View the 64-control posture grid
+## US-006: View the SOC 2 TSC posture grid
 
 **As** Maya
-**I want** to see all 64 SOC 2 Trust Services Criteria controls as a green/yellow/red grid grouped by category
+**I want** to see the SOC 2 Trust Services Criteria clauses as a green/yellow/red grid grouped by category, with the underlying NIST 800-53 controls accessible from the detail panel (ADR-0013)
 **So that** I can scan in 10 seconds which areas need the most work
 
 ### Acceptance criteria (Gherkin)
 
 ```gherkin
-GIVEN a completed scan_run with 64 control_map rows
+GIVEN a completed scan_run with at least one control_map row per active TSC clause
 WHEN I open /dashboard
-THEN I see a grid grouped by category (CC1 through CC9)
-AND each category header shows X/Y controls passing
-AND each control cell is colored: green (PASSING), yellow (NOT_ASSESSED with confidence < 0.50), red (FAILING)
+THEN I see a grid grouped by category (CC1 through CC9, plus A1, C1, PI1, P1)
+AND each category header shows X/Y clauses passing
+AND each TSC clause cell is colored: green (PASSING), yellow (NOT_ASSESSED with confidence < 0.50), red (FAILING)
 
-GIVEN I click on a single control cell (e.g. CC6.1)
+GIVEN I click on a single TSC cell (e.g. CC6.1)
 WHEN the control detail panel opens
-THEN it shows the control text, current status, confidence score, evidence_refs (clickable to evidence cards), and gap_description if FAILING
+THEN it shows the TSC clause id, current status, confidence score, the supporting NIST 800-53 controls (e.g. AC-2, IA-2, SC-7) with their canonical text, evidence_refs (clickable to evidence cards), and gap_description if FAILING
 
 GIVEN I have no completed scan_run yet
 WHEN I open /dashboard
-THEN the grid shows all 64 controls as gray (NOT_ASSESSED)
+THEN the grid shows every TSC clause in the curated mapping as gray (NOT_ASSESSED)
 AND a "Run your first readiness scan" CTA is prominent
 ```
 
@@ -363,7 +363,7 @@ JTBD-1 ("know which controls I satisfy and which are gaps") is satisfied or not 
 - Frontend: `apps/web/app/(dashboard)/page.tsx` ControlPostureGrid component.
 - Backend: `GET /api/scan-runs/{id}/control-map` returns the typed `ControlMapEntry[]`.
 - ADR-0001, ADR-0005.
-- The 64-control list is sourced from `compliance-kb-mcp` (CC1.1 through CC9.9).
+- The SOC 2 TSC clause list (CC1.1 through CC9.2 plus A1.x / C1.x / PI1.x / P1.x) is sourced from `compliance-kb-mcp.lookup_by_soc2_tsc` and backed by the underlying NIST 800-53 controls per ADR-0013.
 
 ### PLAN.md chunks generated by this story
 
@@ -372,7 +372,7 @@ JTBD-1 ("know which controls I satisfy and which are gaps") is satisfied or not 
 ### Definition of done
 
 - [ ] All three acceptance criteria pass
-- [ ] Auto test: Vitest snapshot of the grid with a fixture of 64 control_map entries
+- [ ] Auto test: Vitest snapshot of the grid with a fixture of `control_map` entries spanning every TSC category (CC, A, C, PI, P)
 - [ ] Manual test: complete a scan, eyeball the grid, click into 3 different controls
 - [ ] Accessibility: each control cell has a text label in addition to color (color-blind safety)
 - [ ] Step Report produced; user committed
@@ -1691,7 +1691,7 @@ Trust. Marking something done is a commitment; the user needs an escape hatch wh
 GIVEN I am on the auditpilot.dev landing page and have never signed up
 WHEN I click "Try the demo"
 THEN I am signed in as the demo user (`demo@auditpilot.dev`) within 2 seconds
-AND I land on /dashboard?demo=true with a 64-control posture grid pre-populated with mixed statuses
+AND I land on /dashboard?demo=true with a SOC 2 TSC posture grid pre-populated with mixed statuses (TSC clauses backed by NIST 800-53 controls per ADR-0013)
 AND a yellow banner reads: "This is the public demo. State is shared with all visitors. [Reset demo] [Sign up for your own account]"
 
 GIVEN I am poking around the demo and the state is messy from a previous visitor
