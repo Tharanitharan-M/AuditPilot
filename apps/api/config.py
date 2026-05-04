@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import AnyUrl, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -56,11 +56,17 @@ class Settings(BaseSettings):
     )
 
     # ── Redis — Upstash (ADR-0008, ADR-0010) ─────────────────────────────────
+    # redis_url is the TCP connection string used by redis-py (`apps/api/jobs/`).
+    # Local Docker:  redis://redis:6379/0
+    # Upstash TCP:   rediss://default:<password>@<host>:6379
     redis_url: str = Field(
         ...,  # REQUIRED
-        description="Redis connection string. Local: redis://localhost:6379/0",
+        description="Redis TCP connection string. Local: redis://localhost:6379/0",
     )
-    redis_token: SecretStr | None = None  # Upstash REST token; unused in local dev
+    # Optional Upstash HTTP REST creds. Only used in edge contexts where a TCP
+    # connection is not viable. The chunk 2.10 JobQueue talks TCP via redis-py.
+    upstash_redis_rest_url: str | None = None
+    upstash_redis_rest_token: SecretStr | None = None
 
     # ── Clerk Auth (ADR-0008) ─────────────────────────────────────────────────
     clerk_secret_key: SecretStr = Field(
@@ -100,15 +106,39 @@ class Settings(BaseSettings):
         ...,  # REQUIRED
         description="Langfuse secret key.",
     )
-    langfuse_host: str = "https://cloud.langfuse.com"
+    # Accept either LANGFUSE_HOST (canonical) or LANGFUSE_BASE_URL (alternate).
+    langfuse_host: str = Field(
+        default="https://cloud.langfuse.com",
+        validation_alias=AliasChoices("langfuse_host", "langfuse_base_url"),
+    )
 
     # ── PostHog — error tracking + server-side events (ADR-0009, ADR-0014) ──
-    posthog_api_key: str | None = None  # optional — errors still surface in logs
-    posthog_host: str = "https://us.i.posthog.com"
+    # Accept either POSTHOG_API_KEY (canonical backend name) or the frontend
+    # token env var since it's the same project key (phc_...).
+    posthog_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "posthog_api_key",
+            "next_public_posthog_key",
+            "next_public_posthog_project_token",
+        ),
+    )
+    posthog_host: str = Field(
+        default="https://us.i.posthog.com",
+        validation_alias=AliasChoices("posthog_host", "next_public_posthog_host"),
+    )
 
     # ── Grafana Cloud / OTel — backend metrics (ADR-0009) ────────────────────
-    otlp_endpoint: str | None = None
-    otlp_headers: str | None = None   # "Authorization=Basic <base64>"
+    # OTel SDK reads OTEL_EXPORTER_OTLP_ENDPOINT / _HEADERS by convention; we
+    # also accept the shorter OTLP_* alias for forward-compatible naming.
+    otlp_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("otlp_endpoint", "otel_exporter_otlp_endpoint"),
+    )
+    otlp_headers: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("otlp_headers", "otel_exporter_otlp_headers"),
+    )
 
     # ── A2A — AdversarialAuditor (ADR-0002) ──────────────────────────────────
     auditor_url: str = "http://localhost:8001"

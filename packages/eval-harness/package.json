@@ -6,6 +6,6 @@
   "scripts": {
     "build": "echo 'eval-harness has no build step'",
     "eval": "promptfoo eval",
-    "eval:ci": "promptfoo eval --ci"
+    "eval:ci": "promptfoo eval --no-progress-bar --no-table --no-write"
   }
 }

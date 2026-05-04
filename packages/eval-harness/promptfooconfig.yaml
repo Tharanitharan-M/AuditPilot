@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+#
+# Sprint 2 smoke evals (5 cases).
+#
+# Runs hermetically against the static NIST 800-53 catalogue shipped in
+# `packages/compliance-kb-mcp/src/compliance_kb_mcp/data/`. No LLM calls,
+# no network, no API keys required. The full Sprint 10 suite (Promptfoo +
+# RAGAS + LLM judge) layers on top of this contract.
+#
+# Run locally:
+#   pnpm --filter @auditpilot/eval-harness eval
+#
+# Run in CI (non-interactive, table output disabled):
+#   pnpm --filter @auditpilot/eval-harness eval:ci
+description: AuditPilot Sprint 2 smoke evals
+
+providers:
+  # Invoked with `cwd=packages/eval-harness/` (pnpm --filter anchors here),
+  # so the provider path is resolved relative to this file's directory.
+  - id: "exec:python3 ./provider.py"
+    label: compliance_kb_smoke_provider
+
+prompts:
+  - "{{ test_case }}"
+
+defaultTest:
+  options:
+    transform: "output.trim()"
+
+tests:
+  - description: "lookup_control(AC-1) returns the canonical NIST title"
+    vars:
+      test_case: "lookup_control:AC-1"
+    assert:
+      - type: contains
+        value: "Policy and Procedures"
+
+  - description: "lookup_control(SC-7) returns Boundary Protection"
+    vars:
+      test_case: "lookup_control:SC-7"
+    assert:
+      - type: contains
+        value: "Boundary Protection"
+
+  - description: "lookup_control(unknown) returns NONE without raising"
+    vars:
+      test_case: "lookup_control:ZZ-999"
+    assert:
+      - type: equals
+        value: "NONE"
+
+  - description: "lookup_by_soc2_tsc(CC6.1) maps to at least one 800-53 control"
+    vars:
+      test_case: "lookup_by_soc2_tsc:CC6.1"
+    assert:
+      - type: regex
+        value: "^count=[1-9][0-9]*"
+      - type: contains
+        value: "SC-7"
+
+  - description: "search_controls('boundary protection firewall') ranks SC-7 in the top 5"
+    vars:
+      test_case: "search_controls:boundary protection firewall"
+    assert:
+      - type: contains
+        value: "SC-7"

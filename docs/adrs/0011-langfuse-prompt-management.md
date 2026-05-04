@@ -3,7 +3,7 @@
 **Date:** 2026-05-01
 **Status:** Accepted
 **Deciders:** AuditPilot maintainers
-**Refs:** ADR-0006, ADR-0009; system-design.md §12; PLAN.md Sprint 4, Sprint 10
+**Refs:** ADR-0006, ADR-0009; system-design.md 12; PLAN.md Sprint 4, Sprint 10
 
 ---
 
@@ -63,12 +63,12 @@ The hybrid resolves these. The YAML files are the canonical artifact; Langfuse a
 
 ### Why YAML (not Markdown, not Python, not JSON)
 
-| Format | Diffability | Schema validation | Comments | Multiline literals |
-|---|---|---|---|---|
-| YAML | Good (line-based) | Yes (via Pydantic) | Yes | Yes (`|` block scalars) |
-| Markdown | Excellent | No | Yes | Yes |
-| Python | Good | Yes | Yes | Awkward (triple-quoted strings) |
-| JSON | Bad (no comments) | Yes | No | No |
+| Format   | Diffability       | Schema validation  | Comments | Multiline literals              |
+| -------- | ----------------- | ------------------ | -------- | ------------------------------- | ---------------- |
+| YAML     | Good (line-based) | Yes (via Pydantic) | Yes      | Yes (`                          | ` block scalars) |
+| Markdown | Excellent         | No                 | Yes      | Yes                             |
+| Python   | Good              | Yes                | Yes      | Awkward (triple-quoted strings) |
+| JSON     | Bad (no comments) | Yes                | No       | No                              |
 
 YAML wins for this use case: line-based diffs in PR review, Pydantic-validated schema, comments allowed for inline reviewer notes, block scalars for multi-paragraph system prompts.
 
@@ -113,6 +113,7 @@ Validation: `Prompt(BaseModel)` Pydantic class with `model_config = ConfigDict(e
 Each agent invocation calls `langfuse.get_prompt(...)`. Without a cache, that is one HTTPS round-trip on every user message — adds ~50-150ms to first-token latency.
 
 A 60-second cache:
+
 - Eliminates per-message latency overhead
 - Means a deploy that changes the production label takes up to 60 seconds to be picked up by all running Cloud Run instances
 - Is short enough that a "rollback the bad prompt" emergency is resolved in under a minute
@@ -133,14 +134,14 @@ Labels are more flexible: a single prompt version can be in `production` and `ex
 
 ### Failure modes and the local fallback
 
-| Failure | Behavior |
-|---|---|
-| Langfuse Cloud down (5xx) | Loader retries once with 1-second backoff, then falls back to local YAML; emits PostHog warning event |
-| Langfuse Cloud slow (>5s) | Loader times out, falls back to local YAML; emits PostHog warning event |
-| Local YAML missing | `LoaderError` raised; orchestrator returns RFC 7807 error with `type=https://auditpilot.dev/errors/prompt-unavailable` |
-| Langfuse production label set to wrong version | Operator moves label back via Langfuse UI; takes effect within 60 seconds |
-| YAML schema invalid in PR | CI Pydantic validation blocks merge |
-| Mismatch between YAML and Langfuse production version | Daily reconciliation job runs `git diff` against fetched prompts; opens GitHub issue if drift detected |
+| Failure                                               | Behavior                                                                                                               |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Langfuse Cloud down (5xx)                             | Loader retries once with 1-second backoff, then falls back to local YAML; emits PostHog warning event                  |
+| Langfuse Cloud slow (>5s)                             | Loader times out, falls back to local YAML; emits PostHog warning event                                                |
+| Local YAML missing                                    | `LoaderError` raised; orchestrator returns RFC 7807 error with `type=https://auditpilot.dev/errors/prompt-unavailable` |
+| Langfuse production label set to wrong version        | Operator moves label back via Langfuse UI; takes effect within 60 seconds                                              |
+| YAML schema invalid in PR                             | CI Pydantic validation blocks merge                                                                                    |
+| Mismatch between YAML and Langfuse production version | Daily reconciliation job runs `git diff` against fetched prompts; opens GitHub issue if drift detected                 |
 
 ---
 
@@ -217,13 +218,13 @@ jobs:
 
 ## Alternatives Considered
 
-| Option | Why rejected |
-|---|---|
-| **YAML files only (no runtime backend)** | No runtime mutability. Hotfix requires redeploy. No A/B testing. |
-| **Langfuse only (no repo-side YAML)** | No PR review. CI evals cannot run without API keys exposed to forks. Lost on Langfuse outage. |
-| **LangSmith Prompts** | Already rejected for observability in ADR-0009. Same reasoning. |
-| **GitHub repo as the only source of truth, fetched at runtime via raw URL** | Adds GitHub API rate-limit risk to the runtime path. No version labels. No A/B testing. |
-| **Embedded f-strings in agent code** | The naive baseline. No versioning, no runtime control, no non-engineer surface. |
-| **Custom prompt service** | Builds infrastructure that Langfuse already provides. No portfolio differentiator (unlike the queue ADR, where Redis Streams shows queue mechanics). |
+| Option                                                                      | Why rejected                                                                                                                                         |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **YAML files only (no runtime backend)**                                    | No runtime mutability. Hotfix requires redeploy. No A/B testing.                                                                                     |
+| **Langfuse only (no repo-side YAML)**                                       | No PR review. CI evals cannot run without API keys exposed to forks. Lost on Langfuse outage.                                                        |
+| **LangSmith Prompts**                                                       | Already rejected for observability in ADR-0009. Same reasoning.                                                                                      |
+| **GitHub repo as the only source of truth, fetched at runtime via raw URL** | Adds GitHub API rate-limit risk to the runtime path. No version labels. No A/B testing.                                                              |
+| **Embedded f-strings in agent code**                                        | The naive baseline. No versioning, no runtime control, no non-engineer surface.                                                                      |
+| **Custom prompt service**                                                   | Builds infrastructure that Langfuse already provides. No portfolio differentiator (unlike the queue ADR, where Redis Streams shows queue mechanics). |
 
 ---

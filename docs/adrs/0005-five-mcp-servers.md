@@ -3,13 +3,14 @@
 **Date:** 2026-05-01
 **Status:** Accepted (control catalog choice updated by ADR-0013, 2026-05-02; auth provider decision superseded to Clerk, 2026-05-04)
 **Deciders:** AuditPilot maintainers
-**Refs:** SRS CON-008; PRD §6.1; PLAN.md Sprints 1, 5, 7; ADR-0013; CLAUDE.md stack pins
+**Refs:** SRS CON-008; PRD 6.1; PLAN.md Sprints 1, 5, 7; ADR-0013; CLAUDE.md stack pins
 
 ---
 
 ## Context and Problem Statement
 
 AuditOrchestrator needs access to five distinct tool domains:
+
 1. Security and privacy control knowledge — the canonical NIST SP 800-53 Rev 5 catalog (public domain) annotated with curated SOC 2 Trust Services Criteria mappings. See ADR-0013 for the catalog-choice rationale.
 2. Evidence storage and retrieval (collected GitHub, Gmail, Slack, Calendar evidence with pgvector embeddings)
 3. Security questionnaire parsing and clustering (SIG-Lite XLSX ingestion)
@@ -23,6 +24,7 @@ Options for providing these tools: direct Python function calls, a single monoli
 ## Decision
 
 **Author and publish five standalone MCP servers:**
+
 - `compliance-kb-mcp` — NIST SP 800-53 Rev 5 control catalog (324 base controls, public domain) with curated SOC 2 TSC mappings; exposes `lookup_control`, `lookup_by_soc2_tsc`, `search_controls`, and `list_controls` tools (ADR-0013)
 - `evidence-store-mcp` — evidence storage and retrieval with pgvector hybrid search
 - `questionnaire-mcp` — SIG-Lite XLSX parser, question clustering, and answer scaffolding
@@ -42,6 +44,7 @@ The Model Context Protocol (spec 2025-11-25) went from announcement (November 20
 ### Five published packages as concrete artifacts
 
 The artifact claim "five open-source MCP servers published to npm and PyPI" is concrete, verifiable, and rare. Anyone evaluating the project can `pip install compliance-kb-mcp` or `npm install compliance-kb-mcp` and run the server. This is the difference between a written claim and a runnable artifact. Each package:
+
 - Has its own README, CHANGELOG, and semver versioning
 - Has Pydantic v2 typed schemas generating JSON Schema via `model_json_schema()`
 - Is validated by the `mcp-server-validator` sub-agent before every publish
@@ -50,6 +53,7 @@ The artifact claim "five open-source MCP servers published to npm and PyPI" is c
 ### Separation of concerns as individual packages
 
 Each server has a focused, single responsibility. `compliance-kb-mcp` does not know about evidence. `evidence-store-mcp` does not know about questionnaires. This means:
+
 - A fork that only needs compliance knowledge can install `compliance-kb-mcp` alone
 - A different compliance tool (HIPAA, ISO 27001, PCI-DSS) can extend `compliance-kb-mcp` without touching the other servers
 - Each server can be tested independently with a mock MCP client
@@ -64,6 +68,7 @@ Each server has a focused, single responsibility. `compliance-kb-mcp` does not k
 ## Consequences
 
 ### Positive
+
 - Five independently downloadable, runnable packages; the portfolio claim is verifiable
 - Each server is usable outside AuditPilot; community members can build on them
 - Pydantic v2 schemas generate correct JSON Schema automatically; no manual schema maintenance
@@ -71,6 +76,7 @@ Each server has a focused, single responsibility. `compliance-kb-mcp` does not k
 - MCP appears in ~17% of 2026 AI Engineer JDs; five published servers is the maximum credible claim for a single-developer project
 
 ### Negative
+
 - Five packages is five maintenance surfaces; each needs semver, CHANGELOG, and compatibility testing when MCP spec updates
 - Publishing to both npm and PyPI means two package registries, two auth setups, and two publish workflows
 - The five-server limit (SRS CON-008) means a sixth tool domain requires either folding into an existing server or writing a new ADR
@@ -81,27 +87,27 @@ Each server has a focused, single responsibility. `compliance-kb-mcp` does not k
 
 All five servers must satisfy:
 
-| Constraint | Enforcement |
-|---|---|
-| Pydantic v2 `model_config = ConfigDict(extra="forbid")` on all tool input/output schemas | `mcp-server-validator` blocks merge if missing |
-| `model_json_schema()` produces `additionalProperties: false` | Automated test in each package |
-| FastMCP server entrypoint over stdio | Manual test: connect MCP Inspector |
-| Apache 2.0 license in `pyproject.toml` and `package.json` | license-checker in CI |
-| README with one-command install + quick start | `mcp-server-validator` checks README completeness |
-| Tests with ≥ 80% branch coverage | pytest coverage gate in CI |
-| MCP spec 2025-11-25 compliance | `mcp-server-validator` full pass |
+| Constraint                                                                               | Enforcement                                       |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Pydantic v2 `model_config = ConfigDict(extra="forbid")` on all tool input/output schemas | `mcp-server-validator` blocks merge if missing    |
+| `model_json_schema()` produces `additionalProperties: false`                             | Automated test in each package                    |
+| FastMCP server entrypoint over stdio                                                     | Manual test: connect MCP Inspector                |
+| Apache 2.0 license in `pyproject.toml` and `package.json`                                | license-checker in CI                             |
+| README with one-command install + quick start                                            | `mcp-server-validator` checks README completeness |
+| Tests with ≥ 80% branch coverage                                                         | pytest coverage gate in CI                        |
+| MCP spec 2025-11-25 compliance                                                           | `mcp-server-validator` full pass                  |
 
 ---
 
 ## Alternatives Considered
 
-| Option | Why rejected |
-|---|---|
-| **Direct Python function calls** | No portability. No published artifacts. No MCP protocol signal. The orchestrator becomes a monolith. Other projects cannot consume the tools. |
-| **Single monolithic MCP server** | One published package instead of five. No separation of concerns. Cannot install `compliance-kb-mcp` without installing the evidence store and questionnaire parser. Weaker artifact for forks that only need part of the surface. |
-| **Third-party MCP servers for compliance tools** | No suitable open-source MCP server for SOC 2 TSC knowledge, evidence storage with pgvector, or SIG-Lite parsing exists as of May 2026. Using third-party servers for commodity tools (file system, search) is fine but none of the five domains have appropriate existing servers. |
-| **LangChain tools (not MCP)** | LangChain tools are not portable across runtimes. MCP tools work in Claude Desktop, Cursor, and any MCP-compatible host. MCP is the right abstraction for 2026. |
-| **Fewer than five servers** | Three servers was considered. Rejected because `policy-template-mcp` and `drift-watcher-mcp` have distinct data access patterns (template rendering vs. time-series diffing) that belong in separate packages. Five is the honest count; forcing three would produce one overloaded server. |
+| Option                                           | Why rejected                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Direct Python function calls**                 | No portability. No published artifacts. No MCP protocol signal. The orchestrator becomes a monolith. Other projects cannot consume the tools.                                                                                                                                               |
+| **Single monolithic MCP server**                 | One published package instead of five. No separation of concerns. Cannot install `compliance-kb-mcp` without installing the evidence store and questionnaire parser. Weaker artifact for forks that only need part of the surface.                                                          |
+| **Third-party MCP servers for compliance tools** | No suitable open-source MCP server for SOC 2 TSC knowledge, evidence storage with pgvector, or SIG-Lite parsing exists as of May 2026. Using third-party servers for commodity tools (file system, search) is fine but none of the five domains have appropriate existing servers.          |
+| **LangChain tools (not MCP)**                    | LangChain tools are not portable across runtimes. MCP tools work in Claude Desktop, Cursor, and any MCP-compatible host. MCP is the right abstraction for 2026.                                                                                                                             |
+| **Fewer than five servers**                      | Three servers was considered. Rejected because `policy-template-mcp` and `drift-watcher-mcp` have distinct data access patterns (template rendering vs. time-series diffing) that belong in separate packages. Five is the honest count; forcing three would produce one overloaded server. |
 
 ---
 
@@ -114,4 +120,3 @@ The earlier documentation baseline selected Supabase Auth as the authentication 
 ### Rationale
 
 We are not using Supabase for the database (Neon Postgres) or object storage (Cloudflare R2), so retaining standalone Supabase Auth introduces a vendor for one feature. Clerk reduces frontend implementation cost by providing production-ready auth primitives (`<SignIn />`, `<UserButton />`, `<OrganizationSwitcher />`) that match the Next.js 15 stack directly. Clerk's free tier (10K MAU) is sufficient for portfolio-scale usage. The trade-off is accepted: Clerk's smaller free tier and higher per-MAU pricing after 10K vs Supabase's 50K free tier, which is not material at current scale.
-

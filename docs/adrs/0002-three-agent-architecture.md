@@ -3,13 +3,14 @@
 **Date:** 2026-05-01
 **Status:** Accepted
 **Deciders:** AuditPilot maintainers
-**Refs:** SRS CON-003; PRD §6.1; PLAN.md chunks 2.5, 6.1–6.5, 8.1–8.6
+**Refs:** SRS CON-003; PRD 6.1; PLAN.md chunks 2.5, 6.1–6.5, 8.1–8.6
 
 ---
 
 ## Context and Problem Statement
 
 The original AuditPilot design had eight LLM-powered agents in a peer topology:
+
 - AuditOrchestrator
 - EvidenceCollector (with four sub-agents: GitHub, Gmail, Slack, Calendar)
 - ControlMapper
@@ -41,14 +42,17 @@ The four evidence collectors become four MCP tool calls made concurrently from t
 ### Authority citations
 
 **Anthropic, "Building Effective Agents" (Schluntz and Zhang, December 2024):**
+
 > "Consistently, the most successful implementations weren't using complex frameworks or specialized libraries. Instead, they were building with simple, composable patterns... we recommend finding the simplest solution possible and only increasing complexity when needed."
 
 **Cognition AI, "Don't Build Multi-Agents" (Walden Yan, June 2025):**
+
 > "In 2025, running multiple agents in collaboration only results in fragile systems. The decision-making ends up being too dispersed and context isn't able to be shared thoroughly enough between the agents."
 
 The April 2026 Cognition AI follow-up endorses the single-writer pattern with read-only specialist subagents — exactly the final design.
 
 **OpenAI orchestration guide (2026):**
+
 > "Start with one agent whenever you can. Add specialists only when they materially improve capability isolation, policy isolation, prompt clarity, or trace legibility. Splitting too early creates more prompts, more traces, and more approval surfaces without necessarily making the workflow better."
 
 ### What the eight-agent design was actually doing wrong
@@ -65,14 +69,14 @@ The April 2026 Cognition AI follow-up endorses the single-writer pattern with re
 
 Every architectural property that matters in production is preserved:
 
-| Property | Eight-agent design | Three-agent design |
-|---|---|---|
-| Parallel execution | Four evidence sub-agents in parallel | Four MCP tool calls via `asyncio.gather` in parallel |
-| Multi-agent claim | Eight agents | Two LLM-powered agents in two separate processes communicating via A2A v1.0 |
-| Separation of concerns | Eight dedicated agents | Five MCP servers each owning a focused tool responsibility |
-| HITL | Ad hoc in each agent | First-class `interrupt()` node in the graph |
-| A2A protocol | All agents | Orchestrator → AdversarialAuditor cross-process call |
-| Observability | Fragmented across 8 traces | One orchestrator trace with sub-spans |
+| Property               | Eight-agent design                   | Three-agent design                                                          |
+| ---------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
+| Parallel execution     | Four evidence sub-agents in parallel | Four MCP tool calls via `asyncio.gather` in parallel                        |
+| Multi-agent claim      | Eight agents                         | Two LLM-powered agents in two separate processes communicating via A2A v1.0 |
+| Separation of concerns | Eight dedicated agents               | Five MCP servers each owning a focused tool responsibility                  |
+| HITL                   | Ad hoc in each agent                 | First-class `interrupt()` node in the graph                                 |
+| A2A protocol           | All agents                           | Orchestrator → AdversarialAuditor cross-process call                        |
+| Observability          | Fragmented across 8 traces           | One orchestrator trace with sub-spans                                       |
 
 **The collapse from eight to three removes all the costs while keeping all the portfolio claims.**
 
@@ -85,6 +89,7 @@ AdversarialAuditor is in a genuinely different security domain: it must not have
 ## Consequences
 
 ### Positive
+
 - Single writer to LangGraph state eliminates multi-writer conflicts
 - One Langfuse trace per session; sub-spans for every MCP call; no manual correlation
 - Four concurrent MCP tool calls via `asyncio.gather` preserves parallelism without sub-agent overhead
@@ -92,6 +97,7 @@ AdversarialAuditor is in a genuinely different security domain: it must not have
 - Prompt count drops from eight system prompts to two (orchestrator + adversarial); easier to tune, version, and eval
 
 ### Negative
+
 - AuditOrchestrator becomes the single most complex file in the codebase; must be well-tested
 - Adding a capability that genuinely needs a separate LLM context now requires a new ADR, which may slow future iterations
 - The "eight-agent" framing in earlier project notes must be corrected; the accurate description is "two LLM-powered agents in two processes communicating via A2A v1.0"
@@ -100,12 +106,11 @@ AdversarialAuditor is in a genuinely different security domain: it must not have
 
 ## Alternatives Considered
 
-| Option | Why rejected |
-|---|---|
-| **Eight-agent peer topology** | Exactly the pattern all three authority sources cited above warn against. More prompts, more traces, more handoff failures, dispersed decision-making. No architectural gain justifies the cost. |
-| **Five-agent intermediate** (orchestrator + 3 domain agents + adversarial) | Still has the multi-writer problem and fragmented traces. The collapse should be complete; halfway measures give half the problems without half the benefits. |
-| **OpenAI Swarm-style handoffs** | Swarm uses stateless handoffs where control transfers between agents. Incompatible with the single-writer LangGraph state design. Also, Swarm is an experimental framework, not production-grade. |
-| **Separate microservice per agent** | Microservice-per-agent is the right answer for very large teams. For a two-month solo build, it creates deployment complexity that overwhelms the feature work. AdversarialAuditor is the one justified separate service (for context isolation). |
+| Option                                                                     | Why rejected                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Eight-agent peer topology**                                              | Exactly the pattern all three authority sources cited above warn against. More prompts, more traces, more handoff failures, dispersed decision-making. No architectural gain justifies the cost.                                                  |
+| **Five-agent intermediate** (orchestrator + 3 domain agents + adversarial) | Still has the multi-writer problem and fragmented traces. The collapse should be complete; halfway measures give half the problems without half the benefits.                                                                                     |
+| **OpenAI Swarm-style handoffs**                                            | Swarm uses stateless handoffs where control transfers between agents. Incompatible with the single-writer LangGraph state design. Also, Swarm is an experimental framework, not production-grade.                                                 |
+| **Separate microservice per agent**                                        | Microservice-per-agent is the right answer for very large teams. For a two-month solo build, it creates deployment complexity that overwhelms the feature work. AdversarialAuditor is the one justified separate service (for context isolation). |
 
 ---
-

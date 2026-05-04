@@ -258,7 +258,7 @@ def build_dataset(oscal_path: Path) -> list[dict[str, Any]]:
                         "oscal_last_modified": catalog_last_modified,
                         "license": (
                             "Public domain (work of the U.S. federal government, "
-                            "17 U.S.C. § 105)"
+                            "17 U.S.C.  105)"
                         ),
                         "soc2_mapping_source": (
                             "Curated from the AICPA-published "

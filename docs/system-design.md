@@ -220,13 +220,13 @@ Forked community servers are reviewed by the `security-reviewer` sub-agent befor
 
 ### 2.7 Observability fleet
 
-| Layer                    | Tool                              | Free tier                                      | Coverage                                                                           |
-| ------------------------ | --------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------- |
-| LLM traces and prompts   | Langfuse Cloud Hobby              | 50,000 traces/month                            | Every orchestrator and adversarial invocation, prompt versions, dataset evals      |
-| Error tracking + product analytics + replay | PostHog Cloud Free       | 1M events/month; 5K replays/month              | Frontend + backend errors auto-correlated with session replays, funnels, retention  |
-| Backend metrics          | Grafana Cloud Free + OTel         | 10,000 series, 50 GB logs                      | Cloud Run latency p50/p95/p99, throughput, error rate, custom orchestrator metrics |
-| Web analytics + vitals   | Vercel Analytics + Speed Insights | Free with Vercel Hobby                         | Page views, LCP, FID, CLS, TTFB                                                    |
-| Uptime + status page     | Better Stack Free                 | 10 monitors, custom status page                | `/health` checks on `apps/api` and `apps/auditor`                                  |
+| Layer                                       | Tool                              | Free tier                         | Coverage                                                                           |
+| ------------------------------------------- | --------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------- |
+| LLM traces and prompts                      | Langfuse Cloud Hobby              | 50,000 traces/month               | Every orchestrator and adversarial invocation, prompt versions, dataset evals      |
+| Error tracking + product analytics + replay | PostHog Cloud Free                | 1M events/month; 5K replays/month | Frontend + backend errors auto-correlated with session replays, funnels, retention |
+| Backend metrics                             | Grafana Cloud Free + OTel         | 10,000 series, 50 GB logs         | Cloud Run latency p50/p95/p99, throughput, error rate, custom orchestrator metrics |
+| Web analytics + vitals                      | Vercel Analytics + Speed Insights | Free with Vercel Hobby            | Page views, LCP, FID, CLS, TTFB                                                    |
+| Uptime + status page                        | Better Stack Free                 | 10 monitors, custom status page   | `/health` checks on `apps/api` and `apps/auditor`                                  |
 
 ADR-0009.
 
@@ -249,7 +249,7 @@ Five sequence diagrams cover every user-visible interaction in v1. Each diagram 
 
 Conventions:
 
-- **Maya** is the user (founding engineer persona from PRD §2.1)
+- **Maya** is the user (founding engineer persona from PRD 2.1)
 - **Web** is the Next.js 15 frontend on Vercel
 - **API** is FastAPI on Cloud Run #1
 - **Orch** is AuditOrchestrator inside the API process
@@ -1333,7 +1333,7 @@ Returns `202 { task_id }`. Auditor processes asynchronously, posts to `callback_
 | 409    | State-machine conflict (e.g. PATCH a completed action)       |
 | 422    | File upload format unrecognized                              |
 | 429    | Rate limit exceeded                                          |
-| 500    | Unhandled server error (PostHog-reported)                     |
+| 500    | Unhandled server error (PostHog-reported)                    |
 | 502    | Upstream MCP server error                                    |
 | 503    | Service degraded (e.g. Langfuse unreachable, scan continues) |
 | 504    | Upstream timeout                                             |
@@ -1599,7 +1599,7 @@ The headline acceptance: a fork can clone, set six env vars in `.env`, run `dock
 
 This threat model maps the OWASP LLM Top 10 (v2.0, released 2025) onto AuditPilot-specific surfaces. STRIDE was considered and rejected as the primary framework: STRIDE was designed for client-server systems in the 1990s and does not cleanly map to 2026 LLM risks like prompt injection, supply chain on transitive embedding models, or excessive agency in tool use. The OWASP LLM Top 10 is the right shape for a multi-agent, MCP-tool-rich application like this one.
 
-The trust-boundary diagram from the previous version is retained in §8.1; the OWASP mapping replaces the STRIDE table; the supplemental risks in §8.3 cover non-LLM threats not in the Top 10.
+The trust-boundary diagram from the previous version is retained in 8.1; the OWASP mapping replaces the STRIDE table; the supplemental risks in 8.3 cover non-LLM threats not in the Top 10.
 
 ### 8.1 Trust boundaries
 
@@ -1625,7 +1625,7 @@ The browser is untrusted. The user's GitHub instance is external (we have read-o
 | ID        | Risk                             | AuditPilot surface                                                                                                                                                            | Mitigation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Verification                                                                                                                                     |
 | --------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------- |
 | **LLM01** | Prompt Injection                 | Evidence text fetched from GitHub MCP is fed to the orchestrator. A malicious commit message or PR description could try to override the system prompt.                       | (a) Evidence wrapped in `<<EVIDENCE_BEGIN>>`/`<<EVIDENCE_END>>` delimiters; (b) system prompt instructs the model to treat delimited text as data only; (c) Promptfoo eval suite includes 10 prompt-injection cases from OWASP LLM01 patterns; (d) tool definitions are server-side, never echoed back into LLM context; (e) `least-privilege` enforcement on tool use — the orchestrator can only call read-only tools, so even if injection succeeds the blast radius is bounded by ADR-0004.                                                                                       | Test fixture in `tests/test_prompt_injection.py` feeds 10 attack patterns; eval gate blocks merge on >2% bypass rate.                            |
-| **LLM02** | Sensitive Information Disclosure | Evidence and policy drafts may contain customer data. LLM responses to one user could leak data from a previous user via shared prompt cache.                                 | (a) Per-tenant `user_id` scoping on every prompt; (b) provider prompt cache is shared at the _tool-definition_ layer only, not at the user-data layer; (c) PostHog `before_capture` filter strips `gho_*` GitHub token prefixes; (d) PostHog event capture has a deny-list for any field marked `pii: true` in the schema.                                                                                                                                                                                                                                                             | Code review: every Pydantic input model with PII has `pii: true` annotation; PostHog test event with `gho_test123` confirms scrubbing.           |
+| **LLM02** | Sensitive Information Disclosure | Evidence and policy drafts may contain customer data. LLM responses to one user could leak data from a previous user via shared prompt cache.                                 | (a) Per-tenant `user_id` scoping on every prompt; (b) provider prompt cache is shared at the _tool-definition_ layer only, not at the user-data layer; (c) PostHog `before_capture` filter strips `gho_*` GitHub token prefixes; (d) PostHog event capture has a deny-list for any field marked `pii: true` in the schema.                                                                                                                                                                                                                                                            | Code review: every Pydantic input model with PII has `pii: true` annotation; PostHog test event with `gho_test123` confirms scrubbing.           |
 | **LLM03** | Supply Chain                     | Five custom MCP servers, four forked community MCP servers, and dozens of transitive Python and npm dependencies. A compromised dep ships malicious code into our containers. | (a) Forked community MCPs reviewed by `security-reviewer` sub-agent before merge with upstream commit hash recorded in `docs/security/mcp-server-reviews.md`; (b) Dependabot enabled with weekly update cadence; (c) `cyclonedx-python` and `cyclonedx-bom` generate SBOM in CI on every PR; (d) GitHub Advanced Security secret scanning enabled on the AuditPilot repo itself; (e) all five custom MCP servers pin transitive deps with hashes in `pyproject.toml` and `package-lock.json`.                                                                                         | CI step `pnpm audit --audit-level high` and `pip-audit --strict` block merge on any high-severity advisory.                                      |
 | **LLM04** | Data and Model Poisoning         | The Promptfoo gold set is the source of truth for eval quality. Tampering with it would silently shift the eval baseline.                                                     | (a) Gold set lives under `docs/evals/gold/` with strict `CODEOWNERS` rule requiring maintainer review on every change; (b) `eval-runner` sub-agent is explicitly forbidden from editing files in this directory (enforced by `.claude/settings.json` `permissions.deny` rule); (c) every gold-set case has a `human_labeler_initials` field; entries with empty initials are rejected by CI.                                                                                                                                                                                          | Code review: `CODEOWNERS` requires owner on `docs/evals/gold/**`; Drizzle migration test fixture for non-eval datasets uses different file path. |
 | **LLM05** | Improper Output Handling         | LLM-generated policies become DOCX files; questionnaire answers become XLSX cells. If the LLM emits HTML or formula injection, downstream renderers may execute it.           | (a) Policy Markdown is rendered through `python-docx` which does not execute embedded code; (b) XLSX cell values are written as `xl_inline_string` (never `xl_formula`) unless the cell is explicitly typed as a formula in the original template; (c) all LLM output passing through `apps/api/services/sanitize.py` strips `<script>`, `<iframe>`, `=`, `+@`, `-` from cell prefixes.                                                                                                                                                                                               | Test: feed an LLM output containing `=cmd                                                                                                        | /c calc.exe`and assert sanitized output is`'=cmd | /c calc.exe` (single-quoted, treated as text). |
@@ -1639,7 +1639,7 @@ The browser is untrusted. The user's GitHub instance is external (we have read-o
 
 These are real production risks that are not covered by OWASP LLM Top 10 but apply to AuditPilot.
 
-**Authentication: forged JWT.** Mitigated by Clerk-issued JWT verification via JWKS. Verified on every request. 5-minute Redis cache with explicit invalidation on sign-out (the JWT-revocation hook called out in `decisions/SYSTEM_DESIGN_RATIONALE.md` §1.6).
+**Authentication: forged JWT.** Mitigated by Clerk-issued JWT verification via JWKS. Verified on every request. 5-minute Redis cache with explicit invalidation on sign-out (the JWT-revocation hook called out in `decisions/SYSTEM_DESIGN_RATIONALE.md` 1.6).
 
 **Authentication: forged AgentCard.** A2A v1.0 AgentCard is Ed25519-signed. Orchestrator verifies signature on first fetch and on any signature change. Public key pinned in `apps/api` config.
 
@@ -1655,7 +1655,7 @@ These are real production risks that are not covered by OWASP LLM Top 10 but app
 
 **SOC 2 controls on AuditPilot itself.** AuditPilot has not undergone its own SOC 2 readiness review and produces no `SOC 2 report` of any kind. It is a reference architecture, not a CPA-issued assurance product. Users of the public demo accept that the demo runs on free-tier infrastructure with the operational properties documented here.
 
-**CSRF.** v1 uses cookie-based session with `SameSite=Lax`. v1.5 adds explicit CSRF tokens via `fastapi-csrf-protect` on every state-mutating endpoint. Tracked as TODO in `decisions/SYSTEM_DESIGN_RATIONALE.md` §1.6.
+**CSRF.** v1 uses cookie-based session with `SameSite=Lax`. v1.5 adds explicit CSRF tokens via `fastapi-csrf-protect` on every state-mutating endpoint. Tracked as TODO in `decisions/SYSTEM_DESIGN_RATIONALE.md` 1.6.
 
 ---
 
@@ -1740,7 +1740,7 @@ A running list of decisions deferred or under review. Each item has a target dec
 | ID    | Question                                                                                                                                                                         | Why open                                                                                                                                                               | Decision deadline                                       |
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | OAQ-1 | Should `apps/auditor` be on Cloud Run or as a LangGraph subgraph in `apps/api`?                                                                                                  | The cross-process A2A v1.0 boundary is the architectural claim. Folding it back into the same process keeps latency lower but loses the A2A demonstration.             | Decided 2026-04-30; ADR-0002 keeps it separate. Closed. |
-| OAQ-2 | Do we ship Gmail / Slack / Calendar connectors in v1 or v1.5?                                                                                                                    | They are Should-tier in PRD §6.2. Cutting them simplifies launch; including them strengthens the demo.                                                                 | 2026-06-15 mid-sprint review                            |
+| OAQ-2 | Do we ship Gmail / Slack / Calendar connectors in v1 or v1.5?                                                                                                                    | They are Should-tier in PRD 6.2. Cutting them simplifies launch; including them strengthens the demo.                                                                  | 2026-06-15 mid-sprint review                            |
 | OAQ-3 | Is RAGAS retrieval evaluation in v1, or only Promptfoo + judge validation?                                                                                                       | RAGAS adds 50–60 lines of glue. Eval rigor is a project differentiator.                                                                                                | 2026-06-01 (sprint 10 planning)                         |
 | OAQ-4 | Do we publish a public demo seed dataset so reviewers can run a demo without connecting their own GitHub?                                                                        | Yes, but raises questions about hand-curated evidence vs. synthetic.                                                                                                   | 2026-06-15 (launch polish)                              |
 | OAQ-5 | Multi-tenant org support (multiple users sharing a single tenant) — v2 scope.                                                                                                    | Complicates RLS, OAuth token ownership, and Pending Action assignment. Punted.                                                                                         | Post-launch                                             |
@@ -1820,7 +1820,7 @@ Retry triggers:
 
 - `429` from any LLM provider → retry
 - `5xx` from Cloud Run, R2, GitHub, Langfuse → retry
-- `BudgetExceededError` (per ADR-0010 §1.7) → DLQ immediately
+- `BudgetExceededError` (per ADR-0010 1.7) → DLQ immediately
 - `400/401/403/404` → DLQ immediately (job is malformed)
 
 ### 11.6 Worker placement
@@ -2009,7 +2009,7 @@ When a Promptfoo eval fails, the failing case's Langfuse trace ID is in the fail
 
 ### 12.5 Cache invalidation hygiene
 
-The content-hash cache (described in §6.6) keys on `(user_id, content_hash, control_id)`. To prevent stale decisions when the prompt or KB changes, the cache key is extended:
+The content-hash cache (described in 6.6) keys on `(user_id, content_hash, control_id)`. To prevent stale decisions when the prompt or KB changes, the cache key is extended:
 
 ```
 cache_key = (user_id, content_hash, control_id, prompt_version, kb_version)
@@ -2017,7 +2017,7 @@ cache_key = (user_id, content_hash, control_id, prompt_version, kb_version)
 
 Where `prompt_version` is the Langfuse-fetched orchestrator prompt version and `kb_version` is the SHA-256 of the static `compliance-kb-mcp` dataset at deploy time. Either version changing produces a fresh cache miss (intended).
 
-This was a real gap in the v1 spec called out in `decisions/SYSTEM_DESIGN_RATIONALE.md` §2.4.
+This was a real gap in the v1 spec called out in `decisions/SYSTEM_DESIGN_RATIONALE.md` 2.4.
 
 ---
 
@@ -2120,7 +2120,7 @@ The `monitored_controls` table tracks which SOC 2 TSC clauses a user has opted i
 
 ### 13.7 Vercel Cron timeout
 
-Vercel Hobby Cron times out at 60 seconds. The actual drift work runs in the job queue; the cron-triggered HTTP call only enqueues. Even with 5 users × ~64 monitored TSC clauses each, the enqueue takes ~2 seconds. Migration to Cloud Scheduler is documented in `decisions/SYSTEM_DESIGN_RATIONALE.md` §1.7 if the simple proxy pattern proves fragile.
+Vercel Hobby Cron times out at 60 seconds. The actual drift work runs in the job queue; the cron-triggered HTTP call only enqueues. Even with 5 users × ~64 monitored TSC clauses each, the enqueue takes ~2 seconds. Migration to Cloud Scheduler is documented in `decisions/SYSTEM_DESIGN_RATIONALE.md` 1.7 if the simple proxy pattern proves fragile.
 
 ---
 
@@ -2179,7 +2179,7 @@ The `apps/web/maintenance.tsx` kill-switch page can be deployed in 60 seconds if
 
 ## 15. Re-run, compare, and revert flows
 
-These were called out as missing in `decisions/SYSTEM_DESIGN_RATIONALE.md` §4.4. The data model already supports them via the immutable `scan_runs` and `actions` tables; the spec adds the user-facing surfaces.
+These were called out as missing in `decisions/SYSTEM_DESIGN_RATIONALE.md` 4.4. The data model already supports them via the immutable `scan_runs` and `actions` tables; the spec adds the user-facing surfaces.
 
 ### 15.1 Re-run a scan with different params
 
@@ -2218,7 +2218,7 @@ The current `actions` schema has no soft-delete. The fix:
 - `PATCH /api/actions/{id}` accepts `{ status: "revoked", reason: "..." }` for actions in `completed` state
 - Revoked actions remain visible in history but no longer count toward "completed" in the dashboard summary
 
-This also matches the pattern in `decisions/SYSTEM_DESIGN_RATIONALE.md` §1.4 about soft-delete on `actions`.
+This also matches the pattern in `decisions/SYSTEM_DESIGN_RATIONALE.md` 1.4 about soft-delete on `actions`.
 
 ### 15.4 Sequence
 
@@ -2246,4 +2246,4 @@ sequenceDiagram
 
 ---
 
-_Last updated: 2026-05-01. Cross-references: PRD §1–6, SRS §1–4, ADRs 0001–0012. The user-stories file (`docs/user-stories.md`) consumes this document by reference. Critical rationale and weaknesses are documented in `decisions/SYSTEM_DESIGN_RATIONALE.md`._
+_Last updated: 2026-05-01. Cross-references: PRD 1–6, SRS 1–4, ADRs 0001–0012. The user-stories file (`docs/user-stories.md`) consumes this document by reference. Critical rationale and weaknesses are documented in `decisions/SYSTEM_DESIGN_RATIONALE.md`._

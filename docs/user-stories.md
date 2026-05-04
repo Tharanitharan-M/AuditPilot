@@ -3,47 +3,47 @@
 **Status:** Draft | **Version:** 0.1 | **Date:** 2026-05-01
 **Companion docs:** `docs/prd.md`, `docs/srs.md`, `docs/system-design.md`, `docs/adrs/`
 
-> Stories are written from Maya's perspective unless explicitly noted. Maya is the founding-engineer persona from PRD §2.1: a first-or-second engineer at a 30-50 person B2B SaaS startup who needs SOC 2 readiness fast and has no compliance team. INVEST format throughout. Acceptance criteria use Gherkin GIVEN/WHEN/THEN. Implementation notes stay high level — `docs/system-design.md` is the source of truth for details.
+> Stories are written from Maya's perspective unless explicitly noted. Maya is the founding-engineer persona from PRD 2.1: a first-or-second engineer at a 30-50 person B2B SaaS startup who needs SOC 2 readiness fast and has no compliance team. INVEST format throughout. Acceptance criteria use Gherkin GIVEN/WHEN/THEN. Implementation notes stay high level — `docs/system-design.md` is the source of truth for details.
 
 ---
 
 ## Story map (at a glance)
 
-| ID | Title | Persona | JTBD | Sprint | PRD feature |
-|---|---|---|---|---|---|
-| US-001 | Sign up and sign in | Maya | JTBD-1 | Sprint 3 | Clerk |
-| US-002 | Connect GitHub read-only | Maya | JTBD-1 | Sprint 3 | GitHub read-only connector |
-| US-003 | Run first readiness scan | Maya | JTBD-1 | Sprint 4 | Automated control evidence collection |
-| US-004 | Disconnect a connector | Maya | JTBD-1 | Sprint 3 | GitHub read-only connector |
-| US-005 | See connection status on dashboard | Maya | JTBD-1 | Sprint 3 | Dashboard surface |
-| US-006 | View the SOC 2 TSC posture grid | Maya | JTBD-1 | Sprint 4 | Control posture grid |
-| US-007 | Triage Pending Actions queue | Maya | JTBD-7 | Sprint 4 | Pending Actions queue |
-| US-008 | Inspect a Langfuse trace from a scan | Maya | JTBD-5 | Sprint 9 | Langfuse trace observability |
-| US-009 | See published eval metrics | Maya | JTBD-5 | Sprint 10 | Promptfoo eval suite with judge validation |
-| US-010 | Watch the orchestrator stream tool calls live | Maya | JTBD-1 | Sprint 4 | SSE streaming chat interface |
-| US-011 | Draft an Incident Response Plan | Maya | JTBD-3 | Sprint 6 | Draft policy generation |
-| US-012 | Edit a draft policy in the workspace | Maya | JTBD-3 | Sprint 6 | Draft policy generation |
-| US-013 | Approve a policy via HITL gate | Maya | JTBD-3 | Sprint 6 | Human review gate |
-| US-014 | Reject a policy with a reason and re-draft | Maya | JTBD-3 | Sprint 6 | Human review gate |
-| US-015 | Download a policy as DOCX | Maya | JTBD-3 | Sprint 6 | Draft policy generation |
-| US-016 | Upload a SIG-Lite XLSX for auto-fill | Maya | JTBD-2 | Sprint 7 | SIG-Lite questionnaire auto-fill |
-| US-017 | Review flagged questionnaire cells | Maya | JTBD-2 | Sprint 7 | SIG-Lite questionnaire auto-fill |
-| US-018 | Download the filled questionnaire XLSX | Maya | JTBD-2 | Sprint 7 | SIG-Lite questionnaire auto-fill |
-| US-019 | Run an adversarial mock readiness challenge | Maya | JTBD-4 | Sprint 8 | Adversarial mock readiness challenge |
-| US-020 | Download the gap report from a mock readiness challenge | Maya | JTBD-4 | Sprint 8 | Adversarial mock readiness challenge |
-| US-021 | Run mock readiness challenge inside a self-hosted deployment | Security Lead | JTBD-4 | Sprint 8 + 11 | Adversarial mock readiness challenge |
-| US-022 | Self-host AuditPilot inside our VPC | Security Lead | JTBD-6 | Sprint 11 | Docker Compose one-command local dev |
-| US-023 | Fork an MCP server for a new domain | AI Engineer | JTBD-6 | Sprint 1 + 11 | Five published MCP servers |
-| US-024 | Wire Promptfoo and judge validation into our CI | AI Engineer | JTBD-5 | Sprint 10 | Promptfoo eval suite with judge validation |
-| US-025 | Receive a Pending Action when a control drifts | Maya | JTBD-7 | Sprint 9 | Drift watcher |
-| US-026 | Dismiss a false-positive drift event | Maya | JTBD-7 | Sprint 9 | Drift watcher |
-| US-027 | Draft an Access Control Policy | Maya | JTBD-3 | Sprint 6 | Draft policy generation |
-| US-028 | Draft a Change Management Policy | Maya | JTBD-3 | Sprint 6 | Draft policy generation |
-| US-029 | Draft a Vendor Management Policy | Maya | JTBD-3 | Sprint 6 | Draft policy generation |
-| US-030 | Re-run a scan with different params | Maya | JTBD-1 | Sprint 9 | Re-run / compare / revert flows |
-| US-031 | Compare two scan runs side by side | Maya | JTBD-1 | Sprint 9 | Re-run / compare / revert flows |
-| US-032 | Revert a "Mark as done" action | Maya | JTBD-7 | Sprint 9 | Re-run / compare / revert flows |
-| US-033 | Try the public demo without signing up | Casual reviewer | n/a | Sprint 11 | Public demo account (ADR-0012) |
+| ID     | Title                                                        | Persona         | JTBD   | Sprint        | PRD feature                                |
+| ------ | ------------------------------------------------------------ | --------------- | ------ | ------------- | ------------------------------------------ |
+| US-001 | Sign up and sign in                                          | Maya            | JTBD-1 | Sprint 3      | Clerk                                      |
+| US-002 | Connect GitHub read-only                                     | Maya            | JTBD-1 | Sprint 3      | GitHub read-only connector                 |
+| US-003 | Run first readiness scan                                     | Maya            | JTBD-1 | Sprint 4      | Automated control evidence collection      |
+| US-004 | Disconnect a connector                                       | Maya            | JTBD-1 | Sprint 3      | GitHub read-only connector                 |
+| US-005 | See connection status on dashboard                           | Maya            | JTBD-1 | Sprint 3      | Dashboard surface                          |
+| US-006 | View the SOC 2 TSC posture grid                              | Maya            | JTBD-1 | Sprint 4      | Control posture grid                       |
+| US-007 | Triage Pending Actions queue                                 | Maya            | JTBD-7 | Sprint 4      | Pending Actions queue                      |
+| US-008 | Inspect a Langfuse trace from a scan                         | Maya            | JTBD-5 | Sprint 9      | Langfuse trace observability               |
+| US-009 | See published eval metrics                                   | Maya            | JTBD-5 | Sprint 10     | Promptfoo eval suite with judge validation |
+| US-010 | Watch the orchestrator stream tool calls live                | Maya            | JTBD-1 | Sprint 4      | SSE streaming chat interface               |
+| US-011 | Draft an Incident Response Plan                              | Maya            | JTBD-3 | Sprint 6      | Draft policy generation                    |
+| US-012 | Edit a draft policy in the workspace                         | Maya            | JTBD-3 | Sprint 6      | Draft policy generation                    |
+| US-013 | Approve a policy via HITL gate                               | Maya            | JTBD-3 | Sprint 6      | Human review gate                          |
+| US-014 | Reject a policy with a reason and re-draft                   | Maya            | JTBD-3 | Sprint 6      | Human review gate                          |
+| US-015 | Download a policy as DOCX                                    | Maya            | JTBD-3 | Sprint 6      | Draft policy generation                    |
+| US-016 | Upload a SIG-Lite XLSX for auto-fill                         | Maya            | JTBD-2 | Sprint 7      | SIG-Lite questionnaire auto-fill           |
+| US-017 | Review flagged questionnaire cells                           | Maya            | JTBD-2 | Sprint 7      | SIG-Lite questionnaire auto-fill           |
+| US-018 | Download the filled questionnaire XLSX                       | Maya            | JTBD-2 | Sprint 7      | SIG-Lite questionnaire auto-fill           |
+| US-019 | Run an adversarial mock readiness challenge                  | Maya            | JTBD-4 | Sprint 8      | Adversarial mock readiness challenge       |
+| US-020 | Download the gap report from a mock readiness challenge      | Maya            | JTBD-4 | Sprint 8      | Adversarial mock readiness challenge       |
+| US-021 | Run mock readiness challenge inside a self-hosted deployment | Security Lead   | JTBD-4 | Sprint 8 + 11 | Adversarial mock readiness challenge       |
+| US-022 | Self-host AuditPilot inside our VPC                          | Security Lead   | JTBD-6 | Sprint 11     | Docker Compose one-command local dev       |
+| US-023 | Fork an MCP server for a new domain                          | AI Engineer     | JTBD-6 | Sprint 1 + 11 | Five published MCP servers                 |
+| US-024 | Wire Promptfoo and judge validation into our CI              | AI Engineer     | JTBD-5 | Sprint 10     | Promptfoo eval suite with judge validation |
+| US-025 | Receive a Pending Action when a control drifts               | Maya            | JTBD-7 | Sprint 9      | Drift watcher                              |
+| US-026 | Dismiss a false-positive drift event                         | Maya            | JTBD-7 | Sprint 9      | Drift watcher                              |
+| US-027 | Draft an Access Control Policy                               | Maya            | JTBD-3 | Sprint 6      | Draft policy generation                    |
+| US-028 | Draft a Change Management Policy                             | Maya            | JTBD-3 | Sprint 6      | Draft policy generation                    |
+| US-029 | Draft a Vendor Management Policy                             | Maya            | JTBD-3 | Sprint 6      | Draft policy generation                    |
+| US-030 | Re-run a scan with different params                          | Maya            | JTBD-1 | Sprint 9      | Re-run / compare / revert flows            |
+| US-031 | Compare two scan runs side by side                           | Maya            | JTBD-1 | Sprint 9      | Re-run / compare / revert flows            |
+| US-032 | Revert a "Mark as done" action                               | Maya            | JTBD-7 | Sprint 9      | Re-run / compare / revert flows            |
+| US-033 | Try the public demo without signing up                       | Casual reviewer | n/a    | Sprint 11     | Public demo account (ADR-0012)             |
 
 ---
 
@@ -74,7 +74,7 @@ AND any subsequent request to /dashboard returns 302 to /login
 
 ### Why this matters
 
-This is the entry door. JTBD-1 (PRD §3) requires that Maya can go from landing page to first scan in under five minutes. Friction at sign-up kills the funnel — a single extra form field correlates with a measurable drop in trial completion. Clerk with both email and GitHub OAuth means Maya can sign in with whichever credential she has on hand. Choosing Clerk over rolling our own means we delete approximately 800 lines of bespoke session-management code and inherit a battle-tested session implementation with Next.js-native components. ADR-0008.
+This is the entry door. JTBD-1 (PRD 3) requires that Maya can go from landing page to first scan in under five minutes. Friction at sign-up kills the funnel — a single extra form field correlates with a measurable drop in trial completion. Clerk with both email and GitHub OAuth means Maya can sign in with whichever credential she has on hand. Choosing Clerk over rolling our own means we delete approximately 800 lines of bespoke session-management code and inherit a battle-tested session implementation with Next.js-native components. ADR-0008.
 
 ### Implementation notes (high level only)
 
@@ -201,7 +201,7 @@ AND the final control_map flags the affected controls as NOT_ASSESSED with reaso
 
 ### Why this matters
 
-This is the headline flow. JTBD-1 in PRD §3. If first-time-to-control-grid is fast and the cards are clear, Maya understands the value within one session. If it is slow or unclear, she churns. The 30-second NFR-001 budget is the critical user-facing latency commitment — anything slower and the demo loses its impact.
+This is the headline flow. JTBD-1 in PRD 3. If first-time-to-control-grid is fast and the cards are clear, Maya understands the value within one session. If it is slow or unclear, she churns. The 30-second NFR-001 budget is the critical user-facing latency commitment — anything slower and the demo loses its impact.
 
 ### Implementation notes (high level only)
 
@@ -406,7 +406,7 @@ THEN the card moves to "Rejected" and is not shown on the next scan unless drift
 
 ### Why this matters
 
-This is the most novel surface in AuditPilot vs Vanta. Vanta tells you what is wrong; we draft the fix and link to the exact place to apply it. The 30-second magic moment from PRD §6 happens in this queue. JTBD-7.
+This is the most novel surface in AuditPilot vs Vanta. Vanta tells you what is wrong; we draft the fix and link to the exact place to apply it. The 30-second magic moment from PRD 6 happens in this queue. JTBD-7.
 
 ### Implementation notes (high level only)
 
@@ -1009,7 +1009,7 @@ AND no second AdversarialAuditor task is started
 
 GIVEN the AdversarialAuditor's Cloud Run service is cold-starting and takes >10 seconds to respond to the first A2A call
 WHEN the orchestrator polls /a2a/tasks/{task_id}
-THEN it tolerates the cold-start delay up to 60 seconds via the polling pattern documented in system-design §3.5
+THEN it tolerates the cold-start delay up to 60 seconds via the polling pattern documented in system-design 3.5
 AND no findings are dropped if they arrive after the polling timeout (the result remains accessible via GET /api/mock-audit/{run_id})
 ```
 
@@ -1167,7 +1167,7 @@ AND the migrations run cleanly against my external Postgres on `docker compose r
 
 ### Why this matters
 
-JTBD-6 from the security-lead perspective. The Apache 2.0 license + comprehensive self-host story is the key reason a security-conscious team would choose AuditPilot over the closed-source commercial competition. PRD §2.2.
+JTBD-6 from the security-lead perspective. The Apache 2.0 license + comprehensive self-host story is the key reason a security-conscious team would choose AuditPilot over the closed-source commercial competition. PRD 2.2.
 
 ### Implementation notes (high level only)
 
@@ -1217,7 +1217,7 @@ AND the schemas validate via Pydantic v2 `extra="forbid"`
 
 ### Why this matters
 
-JTBD-6. The MCP server count is a portfolio signal, but the real value to the OSS community is forkability. If a fellow engineer can adopt AuditPilot's MCP pattern in under a day, the project succeeds as a reference architecture. PRD §2.3.
+JTBD-6. The MCP server count is a portfolio signal, but the real value to the OSS community is forkability. If a fellow engineer can adopt AuditPilot's MCP pattern in under a day, the project succeeds as a reference architecture. PRD 2.3.
 
 ### Implementation notes (high level only)
 
@@ -1307,7 +1307,7 @@ AND the suggested_fix text drafts the exact GitHub setting to re-enable
 
 GIVEN a control's evidence flapped between PASSING and NOT_ASSESSED in two consecutive cron runs
 WHEN the drift watcher evaluates it
-THEN no drift event is emitted (the 2-scan flap protection in system-design §13.3 absorbs noise)
+THEN no drift event is emitted (the 2-scan flap protection in system-design 13.3 absorbs noise)
 
 GIVEN I have a control that was added since my last scan
 WHEN the drift watcher runs against the new evidence
@@ -1320,9 +1320,9 @@ JTBD-7. Drift is the difference between point-in-time readiness and continuous r
 
 ### Implementation notes (high level only)
 
-- `drift-watcher-mcp` does the diff (system-design §13.2).
+- `drift-watcher-mcp` does the diff (system-design 13.2).
 - Vercel Cron triggers every 6 hours (ADR-0008 deployment).
-- Pending Actions are typed via `DriftEventCard` (system-design §13.4).
+- Pending Actions are typed via `DriftEventCard` (system-design 13.4).
 
 ### PLAN.md chunks generated by this story
 
@@ -1373,7 +1373,7 @@ JTBD-7. Drift detection without a dismiss path becomes noise quickly. False posi
 
 ### Implementation notes (high level only)
 
-- `drift_events` table has `status` and `dismissed_reason` columns (system-design §13.4).
+- `drift_events` table has `status` and `dismissed_reason` columns (system-design 13.4).
 - `PATCH /api/drift/events/{event_id}` accepts the dismiss payload.
 - Re-firing logic is content-hash-based; a fresh hash means a fresh event.
 
@@ -1417,7 +1417,7 @@ AND I can see which version is the "current" approved one
 
 ### Why this matters
 
-JTBD-3. Access Control is one of the four core SOC 2 policies. PRD §6.1 lists it as Must-tier. This story expands US-011 (Incident Response Plan) to the second of four policies.
+JTBD-3. Access Control is one of the four core SOC 2 policies. PRD 6.1 lists it as Must-tier. This story expands US-011 (Incident Response Plan) to the second of four policies.
 
 ### Implementation notes (high level only)
 
@@ -1567,7 +1567,7 @@ Real users iterate. They run a scan, notice an unexpected gap, adjust scope, re-
 
 - New column `parent_scan_run_id` on `scan_runs` table.
 - `POST /api/scan-runs` accepts the rerun payload.
-- System-design §15.1.
+- System-design 15.1.
 
 ### PLAN.md chunks generated by this story
 
@@ -1615,7 +1615,7 @@ Real users want to show progress. Diff views are the proof of progress. Without 
 ### Implementation notes (high level only)
 
 - New endpoint `GET /api/scan-runs/diff?a=&b=`.
-- ScanRunDiff Pydantic model (system-design §15.2).
+- ScanRunDiff Pydantic model (system-design 15.2).
 
 ### PLAN.md chunks generated by this story
 
@@ -1662,7 +1662,7 @@ Trust. Marking something done is a commitment; the user needs an escape hatch wh
 
 ### Implementation notes (high level only)
 
-- Add `revoked_at`, `revoked_reason` columns to `actions` (system-design §15.3).
+- Add `revoked_at`, `revoked_reason` columns to `actions` (system-design 15.3).
 - Update PATCH endpoint state machine.
 
 ### PLAN.md chunks generated by this story
@@ -1714,7 +1714,7 @@ The demo is the highest-leverage UX surface for the public launch. A hiring mana
 ### Implementation notes (high level only)
 
 - ADR-0012 has the full design.
-- System-design §14 is the architectural view.
+- System-design 14 is the architectural view.
 - Seed fixture at `apps/api/seeds/demo_seed.sql`.
 
 ### PLAN.md chunks generated by this story
@@ -1735,4 +1735,4 @@ The demo is the highest-leverage UX surface for the public launch. A hiring mana
 
 ---
 
-_Last updated: 2026-05-01. Cross-references: PRD §3 (JTBDs), §6 (features); SRS §2 (FRs); system-design.md §3 (sequence flows), §5 (API surface), §11–§15 (background jobs, LLM patterns, drift, demo, re-run); ADR-0001 through ADR-0012. Thirty-three stories cover every Must-tier feature in PRD §6.1 plus all three personas (Maya, Security Lead, AI Engineer) plus the casual-reviewer demo flow. Edge-case Gherkin scenarios in US-002, US-003, US-013, US-019. Should-tier features (Gmail/Slack/Calendar connectors) will get their own stories in v1.5._
+_Last updated: 2026-05-01. Cross-references: PRD 3 (JTBDs), 6 (features); SRS 2 (FRs); system-design.md 3 (sequence flows), 5 (API surface), 11–15 (background jobs, LLM patterns, drift, demo, re-run); ADR-0001 through ADR-0012. Thirty-three stories cover every Must-tier feature in PRD 6.1 plus all three personas (Maya, Security Lead, AI Engineer) plus the casual-reviewer demo flow. Edge-case Gherkin scenarios in US-002, US-003, US-013, US-019. Should-tier features (Gmail/Slack/Calendar connectors) will get their own stories in v1.5._

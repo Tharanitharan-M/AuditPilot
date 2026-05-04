@@ -15,9 +15,13 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "eval": "pnpm --filter eval-harness eval"
+    "eval": "pnpm --filter @auditpilot/eval-harness eval",
+    "eval:ci": "pnpm --filter @auditpilot/eval-harness eval:ci"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.0"
+  },
+  "devDependencies": {
+    "promptfoo": "^0.117.0"
   }
 }

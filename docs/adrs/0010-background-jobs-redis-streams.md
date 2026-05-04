@@ -3,7 +3,7 @@
 **Date:** 2026-05-01
 **Status:** Accepted
 **Deciders:** AuditPilot maintainers
-**Refs:** SRS FR-029 through FR-035, FR-036 through FR-040; system-design.md §11; PLAN.md Sprint 7, Sprint 9; ADR-0008
+**Refs:** SRS FR-029 through FR-035, FR-036 through FR-040; system-design.md 11; PLAN.md Sprint 7, Sprint 9; ADR-0008
 
 ---
 
@@ -54,7 +54,7 @@ The cost of choosing Redis Streams over a Postgres table is approximately one ex
 
 Kafka at 5 users is over-engineering. The honest answer in a conversation about this choice would have to be "I added Kafka because it is a resume keyword." That is the wrong reason to add infrastructure to a portfolio project. A senior reviewer would notice immediately.
 
-If AuditPilot ever needs Kafka-class throughput (1,000+ jobs/sec, multiple regions, log-replay semantics), the migration path is documented in §6 below.
+If AuditPilot ever needs Kafka-class throughput (1,000+ jobs/sec, multiple regions, log-replay semantics), the migration path is documented in 6 below.
 
 ### Why not Cloud Tasks
 
@@ -76,11 +76,11 @@ Inngest is the modern "step-function as code" option. Excellent developer experi
 
 Redis has three queue-shaped primitives:
 
-| Primitive | Persistence | Multiple consumers | ACK semantics | DLQ-friendly |
-|---|---|---|---|---|
-| Pub/Sub | None (fire and forget) | Yes (broadcast) | No | No |
-| List + BLPOP | Yes | Round-robin | No (work is lost on consumer crash) | No |
-| Streams + Consumer Groups | Yes | Yes (load-balanced) | **Yes (XACK)** | **Yes (XPENDING + XCLAIM)** |
+| Primitive                 | Persistence            | Multiple consumers  | ACK semantics                       | DLQ-friendly                |
+| ------------------------- | ---------------------- | ------------------- | ----------------------------------- | --------------------------- |
+| Pub/Sub                   | None (fire and forget) | Yes (broadcast)     | No                                  | No                          |
+| List + BLPOP              | Yes                    | Round-robin         | No (work is lost on consumer crash) | No                          |
+| Streams + Consumer Groups | Yes                    | Yes (load-balanced) | **Yes (XACK)**                      | **Yes (XPENDING + XCLAIM)** |
 
 Streams is the only one with the persistence + consumer-group + ACK semantics needed for reliable background work. It is the right primitive.
 
@@ -92,16 +92,17 @@ This handles the canonical retry case: user clicks "Run scan" twice in 200ms (ne
 
 ### Retry policy
 
-| Attempt | Delay before retry | Cumulative latency |
-|---|---|---|
-| 1 (initial) | 0 | 0 |
-| 2 | 5 seconds | 5s |
-| 3 | 30 seconds | 35s |
-| 4 (DLQ) | n/a | parked |
+| Attempt     | Delay before retry | Cumulative latency |
+| ----------- | ------------------ | ------------------ |
+| 1 (initial) | 0                  | 0                  |
+| 2           | 5 seconds          | 5s                 |
+| 3           | 30 seconds         | 35s                |
+| 4 (DLQ)     | n/a                | parked             |
 
 After three attempts, the job moves to the dead-letter stream with the failure reason, the original payload, and the trace IDs from each attempt. The DLQ has no automatic retry; an operator manually re-enqueues from the DLQ after fixing the root cause.
 
 The retry trigger:
+
 - `429` from any LLM provider → retry
 - `5xx` from Cloud Run, R2, GitHub, Langfuse → retry
 - `400`, `401`, `403`, `404` → DLQ immediately (no retry, the job is malformed)
@@ -117,19 +118,19 @@ Three options were considered:
 
 Decision: option 1 for v1.0. Fewest moving parts. Cloud Run min-instances=0 means the worker also scales to zero, which is fine — when traffic resumes, the worker starts with the container and resumes from the consumer group's position via `XPENDING`. Jobs that were in-flight when the container died are reclaimed by `XCLAIM` after their pending timeout (default 60 seconds).
 
-Migration path to option 2 is one config change: extract `apps/api/jobs/worker.py` into `apps/worker/main.py` and redeploy to a second Cloud Run service. Documented in §6.
+Migration path to option 2 is one config change: extract `apps/api/jobs/worker.py` into `apps/worker/main.py` and redeploy to a second Cloud Run service. Documented in 6.
 
 ### Job types and stream layout
 
 Five job types in v1:
 
-| Job type | Producer | Worker action |
-|---|---|---|
-| `questionnaire.fill` | `POST /api/questionnaire/upload` | Parse XLSX → cluster → retrieve → draft → assemble → upload |
-| `policy.finalize` | Approval at HumanReviewGate | Render Markdown → convert to DOCX → upload to R2 |
-| `mock_audit.run` | `POST /api/mock-audit/run` | Dispatch to AdversarialAuditor over A2A v1.0, poll for findings, merge |
-| `drift.scan` | Vercel Cron → `POST /api/drift/run` | Diff current evidence vs. last snapshot per control |
-| `evidence.compact` | Daily cron at 02:00 UTC | Move evidence rows older than 90 days to R2 archive |
+| Job type             | Producer                            | Worker action                                                          |
+| -------------------- | ----------------------------------- | ---------------------------------------------------------------------- |
+| `questionnaire.fill` | `POST /api/questionnaire/upload`    | Parse XLSX → cluster → retrieve → draft → assemble → upload            |
+| `policy.finalize`    | Approval at HumanReviewGate         | Render Markdown → convert to DOCX → upload to R2                       |
+| `mock_audit.run`     | `POST /api/mock-audit/run`          | Dispatch to AdversarialAuditor over A2A v1.0, poll for findings, merge |
+| `drift.scan`         | Vercel Cron → `POST /api/drift/run` | Diff current evidence vs. last snapshot per control                    |
+| `evidence.compact`   | Daily cron at 02:00 UTC             | Move evidence rows older than 90 days to R2 archive                    |
 
 All five share one stream (`auditpilot:jobs`) and one consumer group (`auditpilot-workers`). Job type discrimination is in the message payload: `{ "type": "questionnaire.fill", "user_id": "...", "payload": {...} }`.
 
@@ -244,13 +245,13 @@ Total LOC for the queue + worker + reclaim: approximately 250 Python lines + 50 
 
 ## Migration paths
 
-| Trigger | Migration |
-|---|---|
-| Worker hot loop blocks HTTP | Extract `apps/worker/` as separate Cloud Run service |
-| > 10k commands/day on Upstash free tier | Upstash pay-as-you-go (linear cost, ~$0.20/100k commands) |
-| > 1,000 jobs/sec sustained | Migrate to Cloud Tasks (provider-managed) or Kafka/Confluent (cross-region) |
-| Cross-region durability needed | Cross-region Redis replication (Upstash Pro) or migrate to Cloud Tasks |
-| Multi-language workers | Standardize on the JobMessage Pydantic schema; any language with a Redis client can consume |
+| Trigger                                 | Migration                                                                                   |
+| --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Worker hot loop blocks HTTP             | Extract `apps/worker/` as separate Cloud Run service                                        |
+| > 10k commands/day on Upstash free tier | Upstash pay-as-you-go (linear cost, ~$0.20/100k commands)                                   |
+| > 1,000 jobs/sec sustained              | Migrate to Cloud Tasks (provider-managed) or Kafka/Confluent (cross-region)                 |
+| Cross-region durability needed          | Cross-region Redis replication (Upstash Pro) or migrate to Cloud Tasks                      |
+| Multi-language workers                  | Standardize on the JobMessage Pydantic schema; any language with a Redis client can consume |
 
 The single layer that matters for migration is the `JobMessage` schema (`apps/api/jobs/schemas.py`). As long as it is stable, the transport layer underneath can change without rewriting handlers.
 
@@ -258,15 +259,15 @@ The single layer that matters for migration is the `JobMessage` schema (`apps/ap
 
 ## Alternatives Considered
 
-| Option | Why rejected |
-|---|---|
+| Option                                  | Why rejected                                                                                                                                                                                                                                                                            |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Postgres `jobs` table + SKIP LOCKED** | Functionally correct at our scale. Rejected on portfolio-signal grounds: "I built a Postgres job queue" is a weaker conversation than "I built a job queue on Redis Streams with consumer groups, ACK, and DLQ." Both are honest engineering; the second is more interesting in review. |
-| **Cloud Tasks** | GCP-coupling. Adds half a day of setup. No portfolio differentiation. |
-| **Inngest** | Seventh managed service. Vendor lock-in. Hides queue mechanics — reviewer reading the code does not see real primitives. |
-| **Kafka (Confluent Cloud)** | Over-engineering at 5 users. The honest defense for this choice does not exist; "I added Kafka because it is a resume keyword" is the wrong reason to add infrastructure. |
-| **AWS SQS** | AWS coupling. We are on GCP for the backend; mixing clouds for a queue creates cross-cloud egress costs and IAM complexity. |
-| **Celery + Redis broker** | Celery's API is verbose, the worker model is opinionated, and the Python-only constraint locks out future polyglot workers. Streams + a thin abstraction is cleaner. |
-| **Native Redis Lists + BLPOP** | No ACK semantics; if the worker crashes mid-job, the work is lost. Streams + Consumer Groups is the right primitive. |
-| **Ignore the problem** | Cloud Run will eat unhandled background work the first time a real user uploads a real questionnaire. Not a viable v1.0. |
+| **Cloud Tasks**                         | GCP-coupling. Adds half a day of setup. No portfolio differentiation.                                                                                                                                                                                                                   |
+| **Inngest**                             | Seventh managed service. Vendor lock-in. Hides queue mechanics — reviewer reading the code does not see real primitives.                                                                                                                                                                |
+| **Kafka (Confluent Cloud)**             | Over-engineering at 5 users. The honest defense for this choice does not exist; "I added Kafka because it is a resume keyword" is the wrong reason to add infrastructure.                                                                                                               |
+| **AWS SQS**                             | AWS coupling. We are on GCP for the backend; mixing clouds for a queue creates cross-cloud egress costs and IAM complexity.                                                                                                                                                             |
+| **Celery + Redis broker**               | Celery's API is verbose, the worker model is opinionated, and the Python-only constraint locks out future polyglot workers. Streams + a thin abstraction is cleaner.                                                                                                                    |
+| **Native Redis Lists + BLPOP**          | No ACK semantics; if the worker crashes mid-job, the work is lost. Streams + Consumer Groups is the right primitive.                                                                                                                                                                    |
+| **Ignore the problem**                  | Cloud Run will eat unhandled background work the first time a real user uploads a real questionnaire. Not a viable v1.0.                                                                                                                                                                |
 
 ---

@@ -36,14 +36,25 @@ jobs:
       - name: Enable Corepack (pnpm)
         run: corepack enable
 
-      - name: Install dependencies
+      - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile
 
-      # ── Sprint 10 activates this gate ──────────────────────────────────────
-      # Until docs/evals/gold/ exists with >= 100 labeled cases, the eval
-      # workflow runs in no-op / placeholder mode and always passes.
-      # Remove the 'if' condition and 'echo placeholder' line in Sprint 10.
-      - name: Run Promptfoo eval (placeholder until Sprint 10)
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The Sprint 2 smoke suite dispatches to compliance_kb_mcp via a
+      # hermetic Python `exec:` provider. Install the package itself (plus
+      # its runtime deps: pydantic, mcp) so the provider can import it.
+      - name: Install compliance-kb-mcp
+        run: pip install -e packages/compliance-kb-mcp
+
+      # ── Sprint 2 gate: 5 smoke evals over the 800-53 catalogue ────────────
+      # Sprint 10 replaces this with the full Promptfoo + RAGAS + LLM-judge
+      # suite gated on docs/evals/gold/ (>= 100 labelled cases) and a
+      # validated LLM judge (TPR/TNR >= 0.85, kappa >= 0.70).
+      - name: Run Promptfoo eval
         if: hashFiles('packages/eval-harness/promptfooconfig.yaml') != ''
         run: pnpm --filter @auditpilot/eval-harness eval:ci
         env:
@@ -51,9 +62,9 @@ jobs:
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
 
-      - name: Placeholder (Sprint 10 will replace this)
+      - name: Placeholder (no config present)
         if: hashFiles('packages/eval-harness/promptfooconfig.yaml') == ''
-        run: echo "Eval gold set not yet populated — placeholder passes. Activate in Sprint 10."
+        run: echo "No promptfooconfig.yaml present — placeholder passes."
 
       # ── Judge validation (Sprint 10) ───────────────────────────────────────
       # Thresholds: TPR >= 0.85, TNR >= 0.85, Cohen's kappa >= 0.70

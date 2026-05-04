@@ -19,13 +19,16 @@ dependencies = [
   "langfuse>=3.0",
   "opentelemetry-sdk>=1.25",
   "opentelemetry-exporter-otlp>=1.25",
+  "opentelemetry-exporter-otlp-proto-http>=1.25",
   "opentelemetry-instrumentation-fastapi>=0.46b0",
   "posthog>=3.0",
   "psycopg[binary]>=3.1",
   "redis>=5.0",
+  "httpx>=0.27",
   "boto3>=1.34",
   "python-multipart>=0.0.9",
   "python-jose[cryptography]>=3.3",
+  "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -33,14 +36,25 @@ dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.23",
   "pytest-cov>=5.0",
-  "httpx>=0.27",
   "ruff>=0.6",
   "mypy>=1.10",
+  "fakeredis[lua]>=2.26",
+  "respx>=0.21",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# apps/api is imported as the `apps.api` namespace package from the monorepo
+# root (`from apps.api.main import ...`). We never publish a wheel for this
+# project; the editable install only needs the dependency resolver to run.
+# `only-include = []` + `bypass-selection = true` produces a dependency-only
+# wheel whose importable path is the repo root (pip's site-packages .pth file
+# adds that root to sys.path for editable installs).
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
+only-include = []
 
 [tool.ruff]
 target-version = "py312"
@@ -55,3 +69,8 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "integration: requires a live Postgres/Redis/etc. (skipped in default runs)",
+]
+# By default skip tests marked `integration` — opt in with `-m integration`.
+addopts = "-m 'not integration'"

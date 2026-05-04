@@ -23,17 +23,34 @@ The problem: design the bridge with the least possible abstraction, highest type
 
 No intermediary service. No WebSocket. No polling. One endpoint, one stream, one header.
 
-The mapping table from LangGraph event to AI SDK 6 part type:
+The mapping table from LangGraph stream update to AI SDK 6 UIMessage chunk type
+(verified 2026-05-04 against `vercel/ai@6.0.57`, and implemented in
+`apps/api/sse/ai_sdk_v6.py`):
 
-| LangGraph event type | AI SDK 6 UIMessage part | Notes |
-|---|---|---|
-| `on_chat_model_stream` | `type: "text-delta"` | Streamed token by token |
-| `on_tool_start` | `type: "tool-call"` | Contains `toolCallId`, `toolName`, `args` |
-| `on_tool_end` | `type: "tool-result"` | Contains `toolCallId`, `result` |
-| `on_chain_end` (final) | `type: "finish"` | Contains `finishReason: "stop"` |
-| `on_chain_end` (interrupt) | `type: "finish"` | Contains `finishReason: "stop"`, signals HITL pause |
+| LangGraph surface                     | AI SDK 6 UIMessage chunk                                                               | Notes                                                                                                             |
+| ------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| stream open                           | `type: "start"`                                                                        | Carries `messageId` + optional `messageMetadata` (thread_id, intent).                                             |
+| first graph step begins               | `type: "start-step"`                                                                   | Wraps the LLM/tool step.                                                                                          |
+| AIMessage with `tool_calls=[...]`     | `type: "tool-input-available"`                                                         | `toolCallId`, `toolName`, `input` (args dict).                                                                    |
+| ToolMessage                           | `type: "tool-output-available"`                                                        | `toolCallId` matches the preceding input chunk; `output` is the tool return value.                                |
+| AIMessage with `content` (final text) | `type: "text-start"` (with `id`) → `type: "text-delta"` (`delta`) → `type: "text-end"` | Per-message text block with a stable id; Sprint 4 will upgrade to true token-level deltas via `astream_events()`. |
+| step ends                             | `type: "finish-step"`                                                                  | Paired with the prior `start-step`.                                                                               |
+| graph ends (final)                    | `type: "finish"`                                                                       | `finishReason: "stop"`; carries late-bound `messageMetadata` (trace id from chunk 2.8).                           |
+| graph ends (interrupt)                | `type: "finish"`                                                                       | `finishReason: "stop"`, `messageMetadata.interruptReason` signals HITL pause.                                     |
+| unrecoverable fault                   | `type: "error"` + `type: "abort"`                                                      | Stream terminates early.                                                                                          |
+| stream terminator                     | `data: [DONE]\n\n`                                                                     | Literal line, required by AI SDK 6's client parser.                                                               |
 
-The frontend `useChat` hook's `onToolCall` handler renders each `tool-call` / `tool-result` pair as an expandable Tool card (FR-059 in PRD §6.1).
+**Breaking change from earlier revisions of this ADR:** the original mapping
+used `text-delta` / `tool-call` / `tool-result` / `finish` without the
+start/end wrappers. Those chunk names shipped in AI SDK 4.x. AI SDK 6.x
+introduced the `text-start` → `text-delta` × N → `text-end` block protocol
+and split tool handling into `tool-input-*` / `tool-output-*`. The new table
+above is the authoritative shape; `apps/api/sse/ai_sdk_v6.py` enforces it
+via Pydantic v2 chunk models with `extra="forbid"`.
+
+The frontend `useChat` hook's `onToolCall` handler renders each
+`tool-input-available` / `tool-output-available` pair as an expandable Tool
+card (FR-059 in PRD 6.1).
 
 ---
 
@@ -41,14 +58,14 @@ The frontend `useChat` hook's `onToolCall` handler renders each `tool-call` / `t
 
 ### Why SSE over WebSocket
 
-| Criterion | SSE | WebSocket |
-|---|---|---|
-| Server → client streaming | Yes (native) | Yes |
-| Client → server messaging | No (separate POST) | Yes (bidirectional) |
-| Reconnection | Browser-native auto-reconnect | Manual |
-| Proxy / CDN compatibility | Excellent (HTTP/1.1 + HTTP/2) | Requires upgrade handling |
-| Vercel AI SDK 6 support | First-class native | Experimental / manual |
-| Firewall compatibility | No issues (HTTP) | Some enterprise firewalls block WS |
+| Criterion                 | SSE                           | WebSocket                          |
+| ------------------------- | ----------------------------- | ---------------------------------- |
+| Server → client streaming | Yes (native)                  | Yes                                |
+| Client → server messaging | No (separate POST)            | Yes (bidirectional)                |
+| Reconnection              | Browser-native auto-reconnect | Manual                             |
+| Proxy / CDN compatibility | Excellent (HTTP/1.1 + HTTP/2) | Requires upgrade handling          |
+| Vercel AI SDK 6 support   | First-class native            | Experimental / manual              |
+| Firewall compatibility    | No issues (HTTP)              | Some enterprise firewalls block WS |
 
 AuditPilot's interaction pattern is request → stream response → done. The client never needs to push mid-stream. SSE is the correct choice. WebSocket adds bidirectional complexity that the use case does not need.
 
@@ -75,6 +92,7 @@ When the orchestrator hits a `interrupt()` node, LangGraph emits `on_chain_end` 
 ## Consequences
 
 ### Positive
+
 - Zero intermediary services; one FastAPI endpoint is the entire bridge
 - Typed end-to-end: `AuditPilotState` (Pydantic v2) → LangGraph events → `UIMessage` parts (AI SDK 6) → `useChat` (Zod-validated on the frontend)
 - Full observability: every LangGraph event is also emitted to Langfuse before being forwarded to the client
@@ -82,6 +100,7 @@ When the orchestrator hits a `interrupt()` node, LangGraph emits `on_chain_end` 
 - HITL over SSE is elegant: the same stream that delivers tokens also delivers the interrupt signal
 
 ### Negative
+
 - The mapping table must stay in sync with AI SDK 6 UIMessage spec changes; Vercel has shipped breaking changes to the wire format between major versions
 - `astream_events()` API in LangGraph is v2 (the recommended version); upgrading LangGraph must not break the event schema
 - CORS configuration on the FastAPI endpoint must be explicitly set to allow the Vercel frontend origin; misconfiguration silently breaks streaming in some browsers
@@ -90,14 +109,13 @@ When the orchestrator hits a `interrupt()` node, LangGraph emits `on_chain_end` 
 
 ## Alternatives Considered
 
-| Option | Why rejected |
-|---|---|
-| **WebSocket bidirectional stream** | Bidirectional messaging is not needed. SSE is simpler, proxy-compatible, and first-class in AI SDK 6. |
-| **Long-polling** | Latency is unacceptable for real-time token streaming. P50 first-token NFR-003 (≤ 3 000 ms) cannot be met. |
-| **LangGraph Platform (hosted)** | Paid commercial service; violates $0/month constraint (SRS CON-005). Removes self-hostability and learning signal. |
-| **gRPC server streaming** | Cross-language complexity. Requires gRPC client in Next.js (not native). No AI SDK 6 integration. |
-| **Intermediary Node.js proxy** | Adds a third service and a second hop. Increases latency, complexity, and failure surface with no benefit. |
-| **GraphQL subscriptions** | Heavyweight for a streaming chat interaction. No AI SDK 6 integration. |
+| Option                             | Why rejected                                                                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **WebSocket bidirectional stream** | Bidirectional messaging is not needed. SSE is simpler, proxy-compatible, and first-class in AI SDK 6.              |
+| **Long-polling**                   | Latency is unacceptable for real-time token streaming. P50 first-token NFR-003 (≤ 3 000 ms) cannot be met.         |
+| **LangGraph Platform (hosted)**    | Paid commercial service; violates $0/month constraint (SRS CON-005). Removes self-hostability and learning signal. |
+| **gRPC server streaming**          | Cross-language complexity. Requires gRPC client in Next.js (not native). No AI SDK 6 integration.                  |
+| **Intermediary Node.js proxy**     | Adds a third service and a second hop. Increases latency, complexity, and failure surface with no benefit.         |
+| **GraphQL subscriptions**          | Heavyweight for a streaming chat interaction. No AI SDK 6 integration.                                             |
 
 ---
-

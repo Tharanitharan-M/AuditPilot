@@ -3,7 +3,7 @@
 **Date:** 2026-05-01
 **Status:** Accepted
 **Deciders:** AuditPilot maintainers
-**Refs:** ADR-0004; PRD §4.1, §6; system-design.md §3.6 (new); PLAN.md Sprint 11
+**Refs:** ADR-0004; PRD 4.1, 6; system-design.md 3.6 (new); PLAN.md Sprint 11
 
 ---
 
@@ -81,7 +81,7 @@ The trade-off: visitors do not see the live "connect GitHub, watch it pull real 
 
 ### Why the demo is a v1.0 launch requirement (not a v1.5 polish item)
 
-The PRD's success metric is GitHub stars + Show HN top-10 (PRD §4.1). Both are driven by hiring-manager-quality first impressions on auditpilot.dev. Without a functional demo, the public URL is essentially a marketing landing page — which is significantly weaker for the project's positioning as a "production-grade reference architecture."
+The PRD's success metric is GitHub stars + Show HN top-10 (PRD 4.1). Both are driven by hiring-manager-quality first impressions on auditpilot.dev. Without a functional demo, the public URL is essentially a marketing landing page — which is significantly weaker for the project's positioning as a "production-grade reference architecture."
 
 The cost is approximately one Sprint 11 day. It buys the entire demo experience for every visitor for the lifetime of the public URL.
 
@@ -149,13 +149,19 @@ Vercel Cron at `0 3 * * *` calls `POST /api/demo/reset` with the cron token. The
 ### Banner component
 
 ```tsx
-{user.is_demo && (
-  <div className="bg-yellow-100 border-b border-yellow-300 p-2 text-sm">
-    This is the public demo. State is shared with all visitors.
-    <button onClick={resetDemo} className="ml-2 underline">Reset demo</button>
-    <a href="/sign-up" className="ml-2 underline">Sign up for your own account</a>
-  </div>
-)}
+{
+  user.is_demo && (
+    <div className="bg-yellow-100 border-b border-yellow-300 p-2 text-sm">
+      This is the public demo. State is shared with all visitors.
+      <button onClick={resetDemo} className="ml-2 underline">
+        Reset demo
+      </button>
+      <a href="/sign-up" className="ml-2 underline">
+        Sign up for your own account
+      </a>
+    </div>
+  );
+}
 ```
 
 ### Seed fixture
@@ -193,13 +199,13 @@ Fixture is regenerated when the project's SOC 2 control catalog or the policy te
 
 ## Alternatives Considered
 
-| Option | Why rejected |
-|---|---|
-| **Per-visitor isolated copies** | 1.5 day implementation cost vs. 0.5 day for shared. Concurrent-visitor count at portfolio scale does not justify the complexity. |
-| **Read-only demo (no edits allowed)** | Loses the magic moment — the value is in clicking "Approve and download," which requires writes. |
-| **No demo, only video** | Lower fidelity for the magic-moment experiences (streaming SSE, live Tool cards, HITL approve). |
-| **Time-limited demo session (auto-clean after 1 hour)** | Same complexity as per-visitor isolation; same reasoning to reject. |
-| **Sign-up required, free tier removes friction** | Sign-up + GitHub OAuth + scan-time still excludes the visitor who has 90 seconds. The whole reason for a demo account is the 90-second visitor. |
-| **Demo on a separate subdomain** (`demo.auditpilot.dev`) | Adds a Vercel deployment target. Same cookie domain rules complicate auth. The query-param approach (`/dashboard?demo=true`) is simpler. |
+| Option                                                   | Why rejected                                                                                                                                    |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Per-visitor isolated copies**                          | 1.5 day implementation cost vs. 0.5 day for shared. Concurrent-visitor count at portfolio scale does not justify the complexity.                |
+| **Read-only demo (no edits allowed)**                    | Loses the magic moment — the value is in clicking "Approve and download," which requires writes.                                                |
+| **No demo, only video**                                  | Lower fidelity for the magic-moment experiences (streaming SSE, live Tool cards, HITL approve).                                                 |
+| **Time-limited demo session (auto-clean after 1 hour)**  | Same complexity as per-visitor isolation; same reasoning to reject.                                                                             |
+| **Sign-up required, free tier removes friction**         | Sign-up + GitHub OAuth + scan-time still excludes the visitor who has 90 seconds. The whole reason for a demo account is the 90-second visitor. |
+| **Demo on a separate subdomain** (`demo.auditpilot.dev`) | Adds a Vercel deployment target. Same cookie domain rules complicate auth. The query-param approach (`/dashboard?demo=true`) is simpler.        |
 
 ---

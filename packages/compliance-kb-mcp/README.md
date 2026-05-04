@@ -12,7 +12,7 @@ and is designed to be easy to fork for other control catalogs.
 ## Why NIST 800-53?
 
 - **Public domain.** NIST 800-53 is a U.S. federal government work and is in
-  the public domain (17 U.S.C. § 105). The full canonical control text can be
+  the public domain (17 U.S.C. 105). The full canonical control text can be
   redistributed without licensing concerns.
 - **Machine-readable canonical source.** NIST publishes the catalog in OSCAL
   JSON, XML, and YAML at
@@ -111,7 +111,7 @@ uv run --directory packages/compliance-kb-mcp pytest tests/test_tools.py
   ([DOI 10.6028/NIST.SP.800-53r5](https://doi.org/10.6028/NIST.SP.800-53r5))
   via the OSCAL JSON catalog at
   [`usnistgov/oscal-content/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json`](https://github.com/usnistgov/oscal-content/blob/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json).
-- **License:** Public domain (17 U.S.C. § 105).
+- **License:** Public domain (17 U.S.C. 105).
 - **SOC 2 TSC mapping:** Curated from the AICPA-published
   [Mapping: 2017 Trust Services Criteria to NIST 800-53](https://www.aicpa-cima.com/resources/download/mapping-2017-trust-services-criteria-to-nist-800-53)
   (registration required) and the publicly available

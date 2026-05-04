@@ -2,7 +2,7 @@
 -- Purpose:   Baseline migration — enables pgvector and establishes the
 --            migration runner pattern. Application tables ship in Sprint 2+.
 -- Idempotent: yes (all statements use IF NOT EXISTS).
--- Refs:      PLAN.md chunk 0F.5, ADR-0008 (Neon Postgres), system-design §4
+-- Refs:      PLAN.md chunk 0F.5, ADR-0008 (Neon Postgres), system-design 4
 
 -- ── Extensions ────────────────────────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS vector;         -- pgvector: embeddings

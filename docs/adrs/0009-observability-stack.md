@@ -3,7 +3,7 @@
 **Date:** 2026-05-01
 **Status:** Amended by [ADR-0014](0014-drop-sentry-consolidate-posthog.md) (Sentry removed, PostHog consolidated)
 **Deciders:** AuditPilot maintainers
-**Refs:** SRS NFR-011, NFR-012; PRD §4.3; PLAN.md Sprint 9; ADR-0008
+**Refs:** SRS NFR-011, NFR-012; PRD 4.3; PLAN.md Sprint 9; ADR-0008
 
 ---
 
@@ -21,15 +21,15 @@ The question: what combination of tools provides complete observability across L
 
 **Seven-layer observability stack, all free-tier:**
 
-| Layer | Tool | Free tier | What it covers |
-|---|---|---|---|
-| **LLM observability** | Langfuse Cloud Hobby | 50,000 traces/month | Agent traces, prompt versions, datasets, eval scoring, token costs |
-| **Backend errors** | Sentry Python SDK | 5,000 errors/month | FastAPI tracebacks, source-mapped stacks, performance monitoring |
-| **Frontend errors** | Sentry Browser SDK | 5,000 errors/month (shared) | JavaScript exceptions, source-mapped stacks, auto-correlated with session replay |
-| **Product analytics + session replay** | PostHog Cloud Free | 1,000,000 events/month; 5,000 replays/month | User funnels, retention, replay correlated with Sentry errors |
-| **Infrastructure metrics** | Grafana Cloud Free | 10,000 series, 50 GB logs/month | Cloud Run latency, throughput, error rate from OTel |
-| **Web analytics + vitals** | Vercel Analytics + Speed Insights | Free with Hobby | Page views, referrers, LCP/FID/CLS/TTFB per page |
-| **Uptime + status page** | Better Stack Free | 10 monitors, public status page | `/health` monitor; `status.auditpilot.dev`; downtime alerts |
+| Layer                                  | Tool                              | Free tier                                   | What it covers                                                                   |
+| -------------------------------------- | --------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------- |
+| **LLM observability**                  | Langfuse Cloud Hobby              | 50,000 traces/month                         | Agent traces, prompt versions, datasets, eval scoring, token costs               |
+| **Backend errors**                     | Sentry Python SDK                 | 5,000 errors/month                          | FastAPI tracebacks, source-mapped stacks, performance monitoring                 |
+| **Frontend errors**                    | Sentry Browser SDK                | 5,000 errors/month (shared)                 | JavaScript exceptions, source-mapped stacks, auto-correlated with session replay |
+| **Product analytics + session replay** | PostHog Cloud Free                | 1,000,000 events/month; 5,000 replays/month | User funnels, retention, replay correlated with Sentry errors                    |
+| **Infrastructure metrics**             | Grafana Cloud Free                | 10,000 series, 50 GB logs/month             | Cloud Run latency, throughput, error rate from OTel                              |
+| **Web analytics + vitals**             | Vercel Analytics + Speed Insights | Free with Hobby                             | Page views, referrers, LCP/FID/CLS/TTFB per page                                 |
+| **Uptime + status page**               | Better Stack Free                 | 10 monitors, public status page             | `/health` monitor; `status.auditpilot.dev`; downtime alerts                      |
 
 **Total: $0/month.**
 
@@ -40,6 +40,7 @@ The question: what combination of tools provides complete observability across L
 ### Why Langfuse (not LangSmith, not Arize Phoenix, not Pydantic Logfire)
 
 **Langfuse** is open-source (MIT license), framework-agnostic, and has the most polished LangGraph integration in the OSS observability category. Key properties:
+
 - **50,000 traces/month free** — 10x more generous than LangSmith's 5,000/month
 - **Pydantic AI integration** — automatic span creation for every Pydantic AI agent invocation
 - **Promptfoo integration** — eval results link back to Langfuse traces via `langfuse://` provider
@@ -58,6 +59,7 @@ The maintainer's prior familiarity with Langfuse means the learning curve is zer
 ### The Sentry + PostHog killer combination
 
 The most important observability decision is the Sentry + PostHog pairing. These two tools auto-correlate:
+
 - When a JavaScript error fires in the browser, Sentry captures the stack trace and embeds a PostHog session replay link in the error detail
 - When you watch a PostHog session replay, all Sentry errors that fired during that session appear inline as timeline events
 - A reviewer or on-call engineer can click any Sentry error and watch the exact user session — every click, every scroll, every network request — that led to the error
@@ -65,6 +67,7 @@ The most important observability decision is the Sentry + PostHog pairing. These
 This is a senior engineering pattern. The combination is more powerful than either tool alone. It costs $0/month.
 
 Frontend instrumentation initializes four things in `instrumentation-client.ts`:
+
 1. Sentry browser SDK (errors + performance)
 2. PostHog client (product analytics + session replay)
 3. `<Analytics />` component (Vercel Analytics — page views, referrers)
@@ -73,6 +76,7 @@ Frontend instrumentation initializes four things in `instrumentation-client.ts`:
 ### Why Grafana Cloud for infrastructure metrics
 
 Grafana Cloud Free accepts OpenTelemetry metrics from the FastAPI backend via OTLP exporter. Metrics collected:
+
 - `http.server.duration` — Cloud Run latency histogram by endpoint
 - `http.server.request.count` — throughput per endpoint
 - `http.server.error.rate` — 5xx rate per endpoint
@@ -84,6 +88,7 @@ The 10,000 series limit is well above what a portfolio project needs (expect ~50
 ### Why Better Stack for uptime
 
 Better Stack Free provides:
+
 - 10 uptime monitors with 3-minute check intervals
 - A public status page at a custom domain (`status.auditpilot.dev`)
 - Email + Slack downtime alerts
@@ -96,6 +101,7 @@ The public status page is a trust signal for any open-source project. Any visito
 ## Consequences
 
 ### Positive
+
 - Complete observability across all five layers (LLM, errors, product, infrastructure, uptime) at $0/month
 - Sentry + PostHog auto-correlation is a production-grade engineering pattern, not just a marketing point
 - Langfuse traces link to Promptfoo eval results; any reviewer can inspect the full reasoning chain for any eval case
@@ -103,6 +109,7 @@ The public status page is a trust signal for any open-source project. Any visito
 - Every layer has a clear upgrade path to paid when the project needs it
 
 ### Negative
+
 - Seven tools to configure, monitor, and keep in sync when endpoints or schemas change
 - Langfuse's 50,000 trace/month limit would be breached by a successful Show HN spike; self-hosted fallback must be ready
 - PostHog session replay captures user behavior by design — privacy policy must disclose this clearly to users of the live demo
@@ -112,13 +119,12 @@ The public status page is a trust signal for any open-source project. Any visito
 
 ## Alternatives Considered
 
-| Option | Why rejected |
-|---|---|
-| **Datadog** | ~$15/host/month for infrastructure + $0.01/1,000 log events + separate APM pricing. Violates $0/month constraint (SRS CON-005). The right answer for a funded team; wrong for a portfolio phase. |
-| **New Relic** | Free tier exists but is complex to configure for Cloud Run + Next.js split. Grafana Cloud + Sentry covers the same ground with less configuration. |
-| **LangSmith** | 5,000 traces/month, closed source. Both properties make it inferior to Langfuse for this project. |
-| **Honeycomb** | Excellent distributed tracing; strong opinions on structured events. 20M events/month free. Considered. Grafana Cloud won on familiarity with the Grafana dashboard ecosystem, which is the most common paid observability stack in enterprise teams — a familiar setup is a stronger portfolio signal. |
-| **Single tool for all layers** | No single free-tier tool covers LLM observability + errors + product analytics + infrastructure + uptime. The seven-tool stack is the minimum set to achieve full coverage. |
+| Option                         | Why rejected                                                                                                                                                                                                                                                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Datadog**                    | ~$15/host/month for infrastructure + $0.01/1,000 log events + separate APM pricing. Violates $0/month constraint (SRS CON-005). The right answer for a funded team; wrong for a portfolio phase.                                                                                                        |
+| **New Relic**                  | Free tier exists but is complex to configure for Cloud Run + Next.js split. Grafana Cloud + Sentry covers the same ground with less configuration.                                                                                                                                                      |
+| **LangSmith**                  | 5,000 traces/month, closed source. Both properties make it inferior to Langfuse for this project.                                                                                                                                                                                                       |
+| **Honeycomb**                  | Excellent distributed tracing; strong opinions on structured events. 20M events/month free. Considered. Grafana Cloud won on familiarity with the Grafana dashboard ecosystem, which is the most common paid observability stack in enterprise teams — a familiar setup is a stronger portfolio signal. |
+| **Single tool for all layers** | No single free-tier tool covers LLM observability + errors + product analytics + infrastructure + uptime. The seven-tool stack is the minimum set to achieve full coverage.                                                                                                                             |
 
 ---
-
