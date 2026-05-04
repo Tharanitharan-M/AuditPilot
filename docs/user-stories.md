@@ -156,7 +156,7 @@ Read-only-by-design is the architectural identity of the project (ADR-0004). Sho
 - [ ] All three acceptance criteria pass
 - [ ] Auto test: Pytest test verifying `POST /api/connectors/github` accepts only the read-only scope set; rejects any token with write scopes
 - [ ] Manual test: real OAuth round-trip from a clean browser
-- [ ] Sentry breadcrumbs scrub any `gho_*` token strings (verified by Sentry test event)
+- [ ] PostHog event capture scrubs any `gho_*` token strings (verified by PostHog test event)
 - [ ] OpenTelemetry span on `POST /api/connectors/github`
 - [ ] Step Report produced; user committed
 

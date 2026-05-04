@@ -19,7 +19,7 @@ dependencies = [
   "opentelemetry-sdk>=1.25",
   "opentelemetry-exporter-otlp>=1.25",
   "opentelemetry-instrumentation-fastapi>=0.46b0",
-  "sentry-sdk[fastapi]>=2.0",
+  "posthog>=3.0",
   "cryptography>=42.0",
 ]
 

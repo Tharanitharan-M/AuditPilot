@@ -188,27 +188,31 @@ LiteLLM is the industry standard for multi-provider routing. We use it to fail o
 
 ---
 
-## Category 9: Frontend Observability
+## Category 9: Frontend + Backend Observability
 
-### Our choice: **The full free-tier stack**
+### Our choice: **The full free-tier stack (5 tools)**
 
-For a 2026-credible portfolio project, frontend observability is non-negotiable. Production SaaS teams in 2026 ship observability in sprint one. We replicate the standard combination on $0/month:
+For a 2026-credible portfolio project, observability is non-negotiable. Production SaaS teams in 2026 ship observability in sprint one. We replicate the standard combination on $0/month:
 
-- **Vercel Analytics** — page views, top pages, referrers (free with Hobby)
-- **Vercel Speed Insights** — Core Web Vitals (LCP, FID, CLS, TTFB) (free with Hobby)
-- **Sentry browser SDK** — JS errors, source-mapped stacks (5k events/month free, same Sentry account as backend)
-- **PostHog** — funnels, session replay, retention, feature flags (1M events/month free)
-- **Better Stack** — uptime monitoring, public status page at `status.auditpilot.dev` (10 monitors free)
+- **Langfuse Cloud Hobby** — LLM traces, prompt versions, datasets, eval scoring (50k traces/month free)
+- **PostHog Cloud Free** — error tracking (frontend + backend), product analytics, session replay, funnels, retention, feature flags (1M events/month free, 5k replays/month)
+- **Grafana Cloud Free** — backend infrastructure metrics via OTel (latency, throughput, error rate). 10k series, 50 GB logs free
+- **Vercel Analytics + Speed Insights** — page views, referrers, Core Web Vitals (LCP, FID, CLS, TTFB) (free with Hobby)
+- **Better Stack Free** — uptime monitoring, public status page at `status.auditpilot.dev` (10 monitors free)
 
-The killer combination is **Sentry plus PostHog**: their auto-correlation means when a JS error fires, the session replay link appears in Sentry. When you watch a PostHog replay, the errors that fired during it appear inline. A reviewer or on-call engineer can click any error and watch the user's actual session leading up to it.
+PostHog is the single product + error tracking tool. PostHog consolidated error tracking with auto-correlated session replays in 2025. When an error fires (frontend or backend), it appears inline in the PostHog session replay timeline. A reviewer or on-call engineer can click any error and watch the user's actual session leading up to it — all in one tool.
+
+### Why we dropped Sentry (ADR-0014)
+
+PostHog consolidated error tracking with auto-correlated session replays in 2025. For a single-tenant portfolio project, running Sentry alongside PostHog duplicates the error-tracking surface without adding signal. We use PostHog as the single product + error tracking tool. Sentry remains the better choice for multi-team production deployments where dedicated error triage tooling matters.
 
 ### What we deliberately do not use
 
-| Tool              | Why not                                                                                                                      |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **Datadog**       | $31/host/month plus per-span charges. Disqualifying at our scale. Mentioned as the commercial upgrade.                       |
-| **New Relic**     | Heavyweight. Mentioned as alternative.                                                                                       |
-| **Grafana Cloud** | Yes, we use this — for backend metrics specifically (latency, throughput, error rate via OTel). 10k series, 50 GB logs free. |
+| Tool              | Why not                                                                                                                                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sentry**        | PostHog consolidated error tracking with session replay auto-correlation. Running both duplicates the error surface without adding signal for a single-tenant project. See ADR-0014 for full rationale.  |
+| **Datadog**       | $31/host/month plus per-span charges. Disqualifying at our scale. Mentioned as the commercial upgrade.                                                                                                   |
+| **New Relic**     | Heavyweight. Mentioned as alternative.                                                                                                                                                                   |
 
 ---
 
@@ -313,11 +317,8 @@ Supabase remains a valid alternative, but it is not in the active stack after th
 | Frontend AI            | Vercel AI SDK 6 + AI Elements + shadcn | Free                | The standard for 2026                         |
 | LLM router             | LiteLLM                                | Open source         | Multi-provider failover                       |
 | Default LLM            | Gemini 2.5 Flash-Lite                  | Free quota          | Free tier, fast, good enough                  |
-| Backend errors         | Sentry Python SDK                      | 5k errors/mo        | Industry standard                             |
-| Frontend errors        | Sentry browser SDK                     | Same Sentry account | Auto-correlated with PostHog replay           |
-| Product analytics      | PostHog Cloud Free                     | 1M events/mo        | Funnels + session replay + feature flags      |
-| Web analytics          | Vercel Analytics                       | Free                | Free with Hobby                               |
-| Web vitals             | Vercel Speed Insights                  | Free                | Free with Hobby                               |
+| Error tracking + product analytics | PostHog Cloud Free              | 1M events/mo        | Frontend + backend errors, funnels, session replay, feature flags |
+| Web analytics + vitals | Vercel Analytics + Speed Insights      | Free                | Free with Hobby                               |
 | Backend metrics        | Grafana Cloud Free                     | 10k series          | OTel exporter from FastAPI                    |
 | Uptime + status        | Better Stack Free                      | 10 monitors         | Public status page                            |
 | Frontend hosting       | Vercel Hobby                           | Free                | Next.js native                                |

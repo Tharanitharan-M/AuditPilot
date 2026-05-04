@@ -26,7 +26,7 @@ AuditPilot v1.0 covers:
 - SIG-Lite questionnaire auto-fill
 - Adversarial mock readiness challenge (AdversarialAuditor via A2A v1.0)
 - Drift detection and Pending Actions queue
-- Full observability stack (Langfuse + Sentry + PostHog + Grafana + Better Stack)
+- Full observability stack (Langfuse + PostHog + Grafana + Better Stack)
 
 Out of scope for v1.0: write API calls to any source tool, ISO 27001 / HIPAA / PCI-DSS mappings, Gmail / Slack / Calendar connectors (Should-tier), Oracle OKE Helm chart. See PRD §5 (Non-Goals).
 
@@ -158,7 +158,7 @@ Every NFR has a measurement method. Unmeasurable requirements are not requiremen
 | NFR-009 | Security | All user-supplied inputs validated via Pydantic v2 before processing | Code review: every FastAPI endpoint parameter has a Pydantic model; no bare `request.json()` usage | 100% |
 | NFR-010 | Security | No raw OAuth token persisted to database or disk | database-reviewer sub-agent confirms no `token` column in any migration | 0 token columns |
 | NFR-011 | Observability | Every AuditOrchestrator invocation produces a Langfuse trace | Langfuse dashboard trace count matches `/chat` endpoint call count | 100% |
-| NFR-012 | Observability | All unhandled Python exceptions captured in Sentry | Sentry event count matches production error count in Grafana error-rate panel | ≥ 95% capture rate |
+| NFR-012 | Observability | All unhandled Python exceptions captured in PostHog | PostHog exception event count matches production error count in Grafana error-rate panel | ≥ 95% capture rate |
 | NFR-013 | Observability | AICPA UPAct compliance: zero forbidden terms in external-facing copy | compliance-language-guard sub-agent run on every PR; CI gate blocks merge on any violation | 0 violations |
 | NFR-014 | Reliability | Public demo URL uptime | Better Stack monitor on `/health`; status page at `status.auditpilot.dev` | ≥ 99% over 30-day window |
 | NFR-015 | Maintainability | Promptfoo eval regression gate | CI runs 100-case gold set on every PR touching prompts / agents / MCP servers; blocks merge on > 2% regression | 0 regressions > 2% |

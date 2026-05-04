@@ -32,7 +32,7 @@ Concretely:
 1. **Source of truth:** YAML files at `apps/api/agents/prompts/<agent>/<version>.yaml`. Committed to git. Reviewed in PRs.
 2. **Push on deploy:** A CI step uploads any new or modified YAML to Langfuse on every merge to `main`, tagging the new version with the `production` label.
 3. **Runtime fetch:** `apps/api/agents/prompts/loader.py` calls `langfuse.get_prompt("orchestrator", label="production")` on each agent invocation, with a 5-second timeout and a 60-second in-memory cache.
-4. **Local fallback:** If the Langfuse fetch fails (timeout or 5xx), the loader falls back to the local YAML file shipped with the container. The fallback emits a Sentry warning so the operator notices the Langfuse outage.
+4. **Local fallback:** If the Langfuse fetch fails (timeout or 5xx), the loader falls back to the local YAML file shipped with the container. The fallback emits a PostHog warning event so the operator notices the Langfuse outage.
 5. **Prompt evals:** The Promptfoo eval suite tests the YAML files directly (the source of truth), not the Langfuse-fetched copy. This guarantees that what is in the repo matches what is evaluated.
 
 ---
@@ -135,8 +135,8 @@ Labels are more flexible: a single prompt version can be in `production` and `ex
 
 | Failure | Behavior |
 |---|---|
-| Langfuse Cloud down (5xx) | Loader retries once with 1-second backoff, then falls back to local YAML; emits Sentry warning |
-| Langfuse Cloud slow (>5s) | Loader times out, falls back to local YAML; emits Sentry warning |
+| Langfuse Cloud down (5xx) | Loader retries once with 1-second backoff, then falls back to local YAML; emits PostHog warning event |
+| Langfuse Cloud slow (>5s) | Loader times out, falls back to local YAML; emits PostHog warning event |
 | Local YAML missing | `LoaderError` raised; orchestrator returns RFC 7807 error with `type=https://auditpilot.dev/errors/prompt-unavailable` |
 | Langfuse production label set to wrong version | Operator moves label back via Langfuse UI; takes effect within 60 seconds |
 | YAML schema invalid in PR | CI Pydantic validation blocks merge |
@@ -186,7 +186,7 @@ class PromptLoader:
             )
             prompt = Prompt.model_validate(data)
         except (TimeoutError, LangfuseError) as e:
-            sentry_sdk.capture_message(f"Langfuse unreachable, using local: {e}", level="warning")
+            posthog.capture("system", "langfuse_fallback", {"error": str(e), "prompt": name})
             prompt = self._load_local(name)
         self.cache[name] = (prompt, time.time())
         return prompt

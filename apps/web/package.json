@@ -10,5 +10,9 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "posthog-js": "^1",
+    "posthog-node": "^5.21.2"
   }
 }

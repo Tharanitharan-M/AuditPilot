@@ -102,8 +102,9 @@ class Settings(BaseSettings):
     )
     langfuse_host: str = "https://cloud.langfuse.com"
 
-    # ── Sentry — error monitoring (ADR-0009) ─────────────────────────────────
-    sentry_dsn: str | None = None  # optional — errors still surface in logs
+    # ── PostHog — error tracking + server-side events (ADR-0009, ADR-0014) ──
+    posthog_api_key: str | None = None  # optional — errors still surface in logs
+    posthog_host: str = "https://us.i.posthog.com"
 
     # ── Grafana Cloud / OTel — backend metrics (ADR-0009) ────────────────────
     otlp_endpoint: str | None = None

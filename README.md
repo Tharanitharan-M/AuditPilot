@@ -54,8 +54,7 @@ Plus four community MCP servers (forked, security-reviewed) for read-only OAuth 
 | Storage | Cloudflare R2 |
 | Cache | Upstash Redis |
 | LLM observability | Langfuse |
-| Error tracking | Sentry |
-| Product analytics | PostHog |
+| Error tracking + product analytics | PostHog |
 | Backend metrics | Grafana Cloud (OTel) |
 | Hosting | Vercel (frontend) + Cloud Run (backend) |
 

@@ -652,13 +652,11 @@ graph TB
         REDIS[Upstash Redis<br/>Cache/RateLimit]
     end
 
-    subgraph "Observability (7 tools, all free tier)"
+    subgraph "Observability (5 tools, all free tier)"
         LF[Langfuse Cloud<br/>LLM Traces & Prompts]
         GR[Grafana Cloud<br/>Backend Metrics]
-        SE[Sentry<br/>Frontend + Backend<br/>Error Tracking]
-        PH[PostHog<br/>Product Analytics<br/>+ Session Replay]
-        VA[Vercel Analytics<br/>Page Views]
-        VS[Vercel Speed Insights<br/>Web Vitals]
+        PH[PostHog<br/>Error Tracking<br/>+ Product Analytics<br/>+ Session Replay]
+        VA[Vercel Analytics<br/>+ Speed Insights]
         BS[Better Stack<br/>Uptime + Status Page]
     end
 
@@ -683,11 +681,9 @@ graph TB
     F --> REDIS
     F --> LF
     F --> GR
-    F --> SE
+    F --> PH
     N --> PH
-    N --> SE
     N --> VA
-    N --> VS
     BS -.->|polls /health| F
     BS -.->|polls /health| AA
 
@@ -734,22 +730,19 @@ Tagged `#mcp` on GitHub.
 
 This is the rare discipline that turns a portfolio project into senior-coded credibility.
 
-### The full observability stack (seven tools, all free tier)
+### The full observability stack (five tools, all free tier)
 
 We run observability on every layer because real production SaaS teams in 2026 ship observability in sprint one, not sprint twelve. Here is the complete picture:
 
 | Layer | Tool | What you see |
 |---|---|---|
 | LLM traces and prompts | Langfuse Cloud Hobby | Every agent step, every LLM call, every prompt version, every dataset eval |
-| Frontend errors and replays | Sentry browser SDK + PostHog | A JS error fires, you click into the session replay, watch what the user did right before it crashed |
-| Backend errors | Sentry Python SDK | FastAPI tracebacks with full context |
+| Error tracking + product analytics + session replay | PostHog Cloud Free | Frontend + backend errors auto-correlated with session replays; funnels (signup → connect tools → first scan); retention; feature flags |
 | Backend metrics | Grafana Cloud (via OpenTelemetry from FastAPI) | Latency p50/p95/p99, throughput, error rate, custom dashboards |
-| Product analytics | PostHog | Funnels (signup → connect tools → first scan), retention, feature flags |
-| Web analytics | Vercel Analytics | Page views, top pages, referrers |
-| Web vitals | Vercel Speed Insights | LCP, FID, CLS, TTFB scored per page |
+| Web analytics + vitals | Vercel Analytics + Speed Insights | Page views, top pages, referrers, LCP, FID, CLS, TTFB scored per page |
 | Uptime + status page | Better Stack | `status.auditpilot.dev` showing real uptime, downtime alerts |
 
-The killer combo is Sentry plus PostHog. They auto-correlate so when an error fires, the session replay link appears in Sentry. When you watch a replay, the errors that fired during it appear in PostHog. A reviewer or on-call engineer can click any error, watch the user, and see exactly what broke. That is the move.
+PostHog consolidated error tracking with auto-correlated session replays in 2025. When a frontend or backend error fires, it appears inline in the PostHog session replay timeline. A reviewer or on-call engineer can click any error, watch the user's actual session, and see exactly what broke — all in one tool. For a single-tenant portfolio project, running a separate error-tracking vendor alongside PostHog duplicates the error-tracking surface without adding signal.
 
 ### The free tier tracker
 
@@ -760,7 +753,6 @@ Set a calendar reminder for the 1st of every month to check:
 - Neon CU-h used (100/month free)
 - Vercel bandwidth (100 GB/month free)
 - Gemini API requests (100 RPD for Pro, 1000 RPD for Flash-Lite)
-- Sentry errors (5k/month free)
 - PostHog events (1M/month free)
 - Better Stack monitors (10 free)
 
@@ -784,7 +776,7 @@ When you finish reading this, do these in order:
 
 6. Write `docs/adrs/0001-langgraph-runtime-choice.md` next. Use the comparisons in Part 7 of this document plus Category 1 of the TOOLING_LANDSCAPE document as your content.
 
-7. Register accounts: Vercel, Cloud Run, Neon, Clerk, Cloudflare, Langfuse Cloud, Sentry, Grafana Cloud, PostHog, Better Stack, Oracle Cloud Always Free. Vercel Analytics and Speed Insights enable from the Vercel dashboard once your project is deployed.
+7. Register accounts: Vercel, Cloud Run, Neon, Clerk, Cloudflare, Langfuse Cloud, Grafana Cloud, PostHog, Better Stack, Oracle Cloud Always Free. Vercel Analytics and Speed Insights enable from the Vercel dashboard once your project is deployed.
 
 8. Wire LangGraph 1.x + Pydantic AI + LiteLLM with Gemini 2.5 Flash-Lite in the first week. Get one MCP tool call working end-to-end before adding more agents.
 

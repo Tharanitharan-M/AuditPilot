@@ -1,7 +1,7 @@
 # ADR-0009: Observability Stack
 
 **Date:** 2026-05-01
-**Status:** Accepted
+**Status:** Amended by [ADR-0014](0014-drop-sentry-consolidate-posthog.md) (Sentry removed, PostHog consolidated)
 **Deciders:** AuditPilot maintainers
 **Refs:** SRS NFR-011, NFR-012; PRD §4.3; PLAN.md Sprint 9; ADR-0008
 

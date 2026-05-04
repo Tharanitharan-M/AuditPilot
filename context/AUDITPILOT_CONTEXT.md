@@ -67,9 +67,7 @@ When the two goals conflict, Goal 1 wins. In practice they rarely conflict — t
 | **Eval (general)** | **Promptfoo** | YAML in repo, GitHub Actions native |
 | **Eval (RAG)** | **RAGAS** | Faithfulness, answer relevancy, context precision/recall |
 | **LLM observability** | **Langfuse** | OSS MIT, OTel-native, 50k events/mo free |
-| **Backend errors** | **Sentry Python SDK** | Industry standard |
-| **Frontend errors** | **Sentry browser SDK** | Auto-correlated with PostHog replay |
-| **Product analytics** | **PostHog** | Funnels, session replay, feature flags |
+| **Error tracking + product analytics** | **PostHog** | Funnels, session replay, feature flags, frontend + backend error tracking |
 | **Web analytics** | **Vercel Analytics** | Free with Hobby |
 | **Web vitals** | **Vercel Speed Insights** | Free with Hobby |
 | **Backend metrics** | **Grafana Cloud Free** | OTel from FastAPI |
@@ -147,25 +145,23 @@ The discipline: typed end-to-end with Pydantic v2 throughout backend, agent stat
 
 ### 2.6 The complete observability stack
 
-This is one of the strongest senior-engineer signals in the project. Production SaaS teams in 2026 ship observability in sprint one, not sprint twelve. The standard combination is Datadog + Sentry + PagerDuty for paid teams. We replicate the same coverage on $0/month with seven free-tier tools across distinct layers:
+This is one of the strongest senior-engineer signals in the project. Production SaaS teams in 2026 ship observability in sprint one, not sprint twelve. The standard combination is Datadog + PagerDuty for paid teams. We replicate the same coverage on $0/month with five free-tier tools across distinct layers:
 
 | Layer | Tool | Free tier | What it covers |
 |---|---|---|---|
 | LLM observability | Langfuse Cloud Hobby | 50k traces/month | Agent traces, prompt versions, datasets, eval scoring |
-| Error tracking (frontend + backend) | Sentry Dev | 5k errors, 50 replays/month | JS exceptions, Python tracebacks, source-mapped stacks |
-| Product analytics + session replay | PostHog Cloud Free | 1M events, 5k replays/month | Funnels, retention, replay tied to errors |
+| Error tracking + product analytics + session replay | PostHog Cloud Free | 1M events, 5k replays/month | Frontend + backend errors, funnels, retention, replay auto-correlated with errors |
 | Backend metrics | Grafana Cloud Free | 10k series, 50 GB logs | Cloud Run latency, throughput, error rate via OTel |
-| Web analytics | Vercel Analytics | Free with Hobby | Page views, top pages, referrers |
-| Web vitals | Vercel Speed Insights | Free with Hobby | LCP, FID, CLS, TTFB scored per page |
+| Web analytics + vitals | Vercel Analytics + Speed Insights | Free with Hobby | Page views, referrers, LCP, FID, CLS, TTFB scored per page |
 | Uptime + status page | Better Stack Free | 10 monitors, public status page | `status.auditpilot.dev` + downtime alerts |
 
-**The killer combination is Sentry + PostHog.** They auto-correlate: when a JS error fires, the session replay link appears in Sentry. When you watch a PostHog replay, the errors that fired during it appear inline. A reviewer can click any error and watch the user's actual session leading up to it. This is the move.
+**PostHog is the single product + error tracking tool.** PostHog consolidated error tracking with auto-correlated session replays in 2025. When a JS or Python error fires, it appears inline in the PostHog session replay timeline. A reviewer can click any error and watch the user's actual session leading up to it — no context-switching between tools. For a single-tenant portfolio project, this eliminates the need for a separate error-tracking vendor.
 
-**Frontend instrumentation specifically.** The Next.js app initializes four things in `instrumentation-client.ts`: Sentry browser SDK, PostHog client, Vercel Analytics (auto-injected via `<Analytics />`), and Vercel Speed Insights (auto-injected via `<SpeedInsights />`).
+**Frontend instrumentation specifically.** The Next.js app initializes three things in `instrumentation-client.ts`: PostHog client (errors + product analytics + session replay), Vercel Analytics (auto-injected via `<Analytics />`), and Vercel Speed Insights (auto-injected via `<SpeedInsights />`).
 
-**Backend instrumentation specifically.** FastAPI initializes Sentry Python SDK, OpenTelemetry exporter pointed at Grafana Cloud, and Langfuse exporter for LLM-specific spans. LangGraph 1.x ships first-class OpenTelemetry support so agent steps automatically become OTel spans.
+**Backend instrumentation specifically.** FastAPI initializes PostHog Python SDK (error tracking + server-side events), OpenTelemetry exporter pointed at Grafana Cloud, and Langfuse exporter for LLM-specific spans. LangGraph 1.x ships first-class OpenTelemetry support so agent steps automatically become OTel spans.
 
-The discipline: comprehensive end-to-end observability across frontend (Vercel Analytics, Speed Insights, Sentry browser SDK, PostHog session replay) and backend (OpenTelemetry, Grafana Cloud, Langfuse, Sentry Python SDK), with public status page on Better Stack. Auto-correlated errors-to-replays via PostHog–Sentry integration. All free-tier.
+The discipline: comprehensive end-to-end observability across frontend (Vercel Analytics, Speed Insights, PostHog error tracking + session replay) and backend (OpenTelemetry, Grafana Cloud, Langfuse, PostHog Python SDK), with public status page on Better Stack. Auto-correlated errors-to-replays within PostHog. All free-tier.
 
 ### 2.7 Eval methodology (the discipline that signals senior)
 

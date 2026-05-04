@@ -16,5 +16,8 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "eval": "pnpm --filter eval-harness eval"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "^7.3.0"
   }
 }

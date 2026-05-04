@@ -42,7 +42,7 @@ The architecture has five bounded contexts:
 2. **Orchestration backend** — FastAPI on Cloud Run hosting the AuditOrchestrator (LangGraph 1.x graph with Pydantic AI nodes), HumanReviewGate, and the SSE bridge to AI SDK 6
 3. **Adversarial service** — Separate FastAPI on a second Cloud Run target hosting AdversarialAuditor, reachable from the orchestrator over A2A v1.0
 4. **MCP server fleet** — Five published packages on npm and PyPI exposing typed tools (compliance-kb, evidence-store, questionnaire, policy-template, drift-watcher) plus four community connectors (GitHub primary in v1)
-5. **Data and observability** — Neon Postgres with pgvector, Cloudflare R2 for files, Upstash Redis for rate limits, Langfuse for LLM traces, Sentry for errors, PostHog for product analytics, Grafana Cloud for backend metrics, Better Stack for uptime
+5. **Data and observability** — Neon Postgres with pgvector, Cloudflare R2 for files, Upstash Redis for rate limits, Langfuse for LLM traces, PostHog for error tracking + product analytics, Grafana Cloud for backend metrics, Better Stack for uptime
 
 ```mermaid
 graph TB
@@ -51,7 +51,7 @@ graph TB
     end
 
     subgraph "Frontend &mdash; Vercel Hobby"
-        Web[Next.js 15<br/>+ AI SDK 6 useChat<br/>+ shadcn/ui<br/>+ Sentry browser<br/>+ PostHog]
+        Web[Next.js 15<br/>+ AI SDK 6 useChat<br/>+ shadcn/ui<br/>+ PostHog]
     end
 
     subgraph "Auth"
@@ -91,8 +91,7 @@ graph TB
 
     subgraph "Observability &mdash; 7 free tiers"
         LF[Langfuse Cloud<br/>LLM traces + prompts + datasets]
-        SE[Sentry<br/>FE + BE errors]
-        PH[PostHog<br/>analytics + replay]
+        PH[PostHog<br/>errors + analytics + replay]
         GR[Grafana Cloud<br/>OTel metrics]
         BS[Better Stack<br/>uptime + status page]
     end
@@ -125,12 +124,10 @@ graph TB
     API --> R2
     API --> REDIS
     API --> LF
-    API --> SE
+    API --> PH
     API --> GR
     AA --> LF
-    AA --> SE
 
-    Web --> SE
     Web --> PH
 
     VC -->|POST /api/drift/run| API
@@ -175,7 +172,7 @@ Every service, package, and MCP server has a row. Every row has a one-line respo
 
 | Component      | Path            | Responsibility                                                                                                                       | ADR                          |
 | -------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
-| `apps/web`     | `apps/web/`     | Next.js 15 frontend, AI SDK 6 streaming UI, shadcn/ui components, Clerk client, Sentry + PostHog instrumentation                     | ADR-0003, ADR-0008           |
+| `apps/web`     | `apps/web/`     | Next.js 15 frontend, AI SDK 6 streaming UI, shadcn/ui components, Clerk client, PostHog instrumentation                              | ADR-0003, ADR-0008           |
 | `apps/api`     | `apps/api/`     | FastAPI backend on Cloud Run; hosts AuditOrchestrator graph, HumanReviewGate, the SSE bridge to AI SDK 6, and all REST endpoints     | ADR-0001, ADR-0003, ADR-0007 |
 | `apps/auditor` | `apps/auditor/` | FastAPI service on a second Cloud Run target; hosts AdversarialAuditor agent, exposes A2A v1.0 server endpoint with signed AgentCard | ADR-0002                     |
 
@@ -226,8 +223,7 @@ Forked community servers are reviewed by the `security-reviewer` sub-agent befor
 | Layer                    | Tool                              | Free tier                                      | Coverage                                                                           |
 | ------------------------ | --------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------- |
 | LLM traces and prompts   | Langfuse Cloud Hobby              | 50,000 traces/month                            | Every orchestrator and adversarial invocation, prompt versions, dataset evals      |
-| Backend errors           | Sentry Python SDK                 | 5,000 errors/month (shared with FE)            | FastAPI tracebacks                                                                 |
-| Frontend errors + replay | Sentry Browser SDK + PostHog      | shared with BE; PostHog 1M events / 5K replays | JS errors auto-correlated with session replays                                     |
+| Error tracking + product analytics + replay | PostHog Cloud Free       | 1M events/month; 5K replays/month              | Frontend + backend errors auto-correlated with session replays, funnels, retention  |
 | Backend metrics          | Grafana Cloud Free + OTel         | 10,000 series, 50 GB logs                      | Cloud Run latency p50/p95/p99, throughput, error rate, custom orchestrator metrics |
 | Web analytics + vitals   | Vercel Analytics + Speed Insights | Free with Vercel Hobby                         | Page views, LCP, FID, CLS, TTFB                                                    |
 | Uptime + status page     | Better Stack Free                 | 10 monitors, custom status page                | `/health` checks on `apps/api` and `apps/auditor`                                  |
@@ -1337,7 +1333,7 @@ Returns `202 { task_id }`. Auditor processes asynchronously, posts to `callback_
 | 409    | State-machine conflict (e.g. PATCH a completed action)       |
 | 422    | File upload format unrecognized                              |
 | 429    | Rate limit exceeded                                          |
-| 500    | Unhandled server error (Sentry-reported)                     |
+| 500    | Unhandled server error (PostHog-reported)                     |
 | 502    | Upstream MCP server error                                    |
 | 503    | Service degraded (e.g. Langfuse unreachable, scan continues) |
 | 504    | Upstream timeout                                             |
@@ -1366,9 +1362,7 @@ All error bodies follow RFC 7807 with a `trace_id` field linking to the Langfuse
 
 **LLM observability (Langfuse):** Every Pydantic AI agent invocation auto-creates a Langfuse trace via the Langfuse Pydantic AI integration. The trace ID is propagated to the SSE stream's `finish` event so the frontend can render a Langfuse trace link in the Mission Control debug drawer. Prompts are version-controlled in Langfuse; the orchestrator pulls the prompt by name + version on each invocation.
 
-**Backend errors (Sentry Python SDK):** Initialized in `apps/api/main.py` at startup. Captures unhandled exceptions, FastAPI 5xx responses, and slow transactions (>2s). Source maps for the frontend bundle uploaded on every Vercel deploy.
-
-**Frontend errors (Sentry browser SDK):** Initialized in `instrumentation-client.ts`. Captures JS errors, unhandled rejections, performance traces. Auto-correlates with PostHog session replay (the killer combo from ADR-0009).
+**Error tracking (PostHog):** PostHog Python SDK initialized in `apps/api/main.py` at startup captures unhandled exceptions and FastAPI 5xx responses. PostHog browser client initialized in `instrumentation-client.ts` captures JS errors and unhandled rejections. Both auto-correlate with PostHog session replays. See ADR-0014 for the consolidation rationale (Sentry removed in favor of PostHog as single error tracking + product analytics tool).
 
 **Backend metrics (Grafana Cloud + OTel):** OpenTelemetry SDK in `apps/api` exports metrics via OTLP to Grafana Cloud. Standard metrics: `http.server.duration`, `http.server.request.count`, `http.server.error.rate`. Custom metrics: `orchestrator.scan.duration_ms`, `orchestrator.cost_usd`, `orchestrator.cache_hit_rate`, `mcp.tool_call.duration_ms`.
 
@@ -1384,7 +1378,7 @@ All error bodies follow RFC 7807 with a `trace_id` field linking to the Langfuse
 
 **Strategy:** Sliding window. Per-user keys derived from JWT subject claim. Anonymous endpoints (`/health`) are not rate-limited.
 
-**Failure mode:** If Upstash Redis is unreachable, rate limiting fails open (request proceeds). This is a deliberate trade-off — degrading user experience during a Redis outage is worse than the small risk of a brief spike. The fail-open is logged as a Sentry warning so we notice if it happens often.
+**Failure mode:** If Upstash Redis is unreachable, rate limiting fails open (request proceeds). This is a deliberate trade-off — degrading user experience during a Redis outage is worse than the small risk of a brief spike. The fail-open is logged as a PostHog warning event so we notice if it happens often.
 
 ### 6.4 Error handling and retry
 
@@ -1631,7 +1625,7 @@ The browser is untrusted. The user's GitHub instance is external (we have read-o
 | ID        | Risk                             | AuditPilot surface                                                                                                                                                            | Mitigation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Verification                                                                                                                                     |
 | --------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------- |
 | **LLM01** | Prompt Injection                 | Evidence text fetched from GitHub MCP is fed to the orchestrator. A malicious commit message or PR description could try to override the system prompt.                       | (a) Evidence wrapped in `<<EVIDENCE_BEGIN>>`/`<<EVIDENCE_END>>` delimiters; (b) system prompt instructs the model to treat delimited text as data only; (c) Promptfoo eval suite includes 10 prompt-injection cases from OWASP LLM01 patterns; (d) tool definitions are server-side, never echoed back into LLM context; (e) `least-privilege` enforcement on tool use — the orchestrator can only call read-only tools, so even if injection succeeds the blast radius is bounded by ADR-0004.                                                                                       | Test fixture in `tests/test_prompt_injection.py` feeds 10 attack patterns; eval gate blocks merge on >2% bypass rate.                            |
-| **LLM02** | Sensitive Information Disclosure | Evidence and policy drafts may contain customer data. LLM responses to one user could leak data from a previous user via shared prompt cache.                                 | (a) Per-tenant `user_id` scoping on every prompt; (b) provider prompt cache is shared at the _tool-definition_ layer only, not at the user-data layer; (c) Sentry `before_send` regex strips `gho_*` GitHub token prefixes; (d) PostHog event capture has a deny-list for any field marked `pii: true` in the schema.                                                                                                                                                                                                                                                                 | Code review: every Pydantic input model with PII has `pii: true` annotation; Sentry test event with `gho_test123` confirms scrubbing.            |
+| **LLM02** | Sensitive Information Disclosure | Evidence and policy drafts may contain customer data. LLM responses to one user could leak data from a previous user via shared prompt cache.                                 | (a) Per-tenant `user_id` scoping on every prompt; (b) provider prompt cache is shared at the _tool-definition_ layer only, not at the user-data layer; (c) PostHog `before_capture` filter strips `gho_*` GitHub token prefixes; (d) PostHog event capture has a deny-list for any field marked `pii: true` in the schema.                                                                                                                                                                                                                                                             | Code review: every Pydantic input model with PII has `pii: true` annotation; PostHog test event with `gho_test123` confirms scrubbing.           |
 | **LLM03** | Supply Chain                     | Five custom MCP servers, four forked community MCP servers, and dozens of transitive Python and npm dependencies. A compromised dep ships malicious code into our containers. | (a) Forked community MCPs reviewed by `security-reviewer` sub-agent before merge with upstream commit hash recorded in `docs/security/mcp-server-reviews.md`; (b) Dependabot enabled with weekly update cadence; (c) `cyclonedx-python` and `cyclonedx-bom` generate SBOM in CI on every PR; (d) GitHub Advanced Security secret scanning enabled on the AuditPilot repo itself; (e) all five custom MCP servers pin transitive deps with hashes in `pyproject.toml` and `package-lock.json`.                                                                                         | CI step `pnpm audit --audit-level high` and `pip-audit --strict` block merge on any high-severity advisory.                                      |
 | **LLM04** | Data and Model Poisoning         | The Promptfoo gold set is the source of truth for eval quality. Tampering with it would silently shift the eval baseline.                                                     | (a) Gold set lives under `docs/evals/gold/` with strict `CODEOWNERS` rule requiring maintainer review on every change; (b) `eval-runner` sub-agent is explicitly forbidden from editing files in this directory (enforced by `.claude/settings.json` `permissions.deny` rule); (c) every gold-set case has a `human_labeler_initials` field; entries with empty initials are rejected by CI.                                                                                                                                                                                          | Code review: `CODEOWNERS` requires owner on `docs/evals/gold/**`; Drizzle migration test fixture for non-eval datasets uses different file path. |
 | **LLM05** | Improper Output Handling         | LLM-generated policies become DOCX files; questionnaire answers become XLSX cells. If the LLM emits HTML or formula injection, downstream renderers may execute it.           | (a) Policy Markdown is rendered through `python-docx` which does not execute embedded code; (b) XLSX cell values are written as `xl_inline_string` (never `xl_formula`) unless the cell is explicitly typed as a formula in the original template; (c) all LLM output passing through `apps/api/services/sanitize.py` strips `<script>`, `<iframe>`, `=`, `+@`, `-` from cell prefixes.                                                                                                                                                                                               | Test: feed an LLM output containing `=cmd                                                                                                        | /c calc.exe`and assert sanitized output is`'=cmd | /c calc.exe` (single-quoted, treated as text). |
@@ -1674,13 +1668,13 @@ This section binds NFRs from the SRS to specific budget gates in the system desi
 | Endpoint                                 | P50       | P95       | P99       | Budget breach action                 |
 | ---------------------------------------- | --------- | --------- | --------- | ------------------------------------ |
 | `GET /health`                            | 50 ms     | 100 ms    | 200 ms    | None (probed by Better Stack only)   |
-| `GET /api/me`                            | 100 ms    | 200 ms    | 500 ms    | Sentry warning                       |
+| `GET /api/me`                            | 100 ms    | 200 ms    | 500 ms    | PostHog warning event                |
 | `GET /api/scan-runs`                     | 150 ms    | 400 ms    | 800 ms    | Add index; check pgvector query plan |
 | `POST /chat` first-token (NFR-003)       | 1500 ms   | 2500 ms   | 3000 ms   | Block deploy on regression           |
 | `POST /chat` complete scan (NFR-001)     | 25,000 ms | 45,000 ms | 60,000 ms | Block deploy on regression           |
-| `POST /chat/resume` first-token          | 800 ms    | 1500 ms   | 2500 ms   | Sentry warning                       |
+| `POST /chat/resume` first-token          | 800 ms    | 1500 ms   | 2500 ms   | PostHog warning event                |
 | `POST /api/questionnaire/upload`         | 500 ms    | 1500 ms   | 3000 ms   | None (just file save)                |
-| `POST /api/mock-audit/run` first-finding | 5000 ms   | 10,000 ms | 15,000 ms | Sentry warning                       |
+| `POST /api/mock-audit/run` first-finding | 5000 ms   | 10,000 ms | 15,000 ms | PostHog warning event                |
 
 Cloud Run cold start contributes ~1.5–2.5s on the first request after idle. P50 budgets exclude cold start; P99 budgets include it.
 
@@ -1691,7 +1685,7 @@ Cloud Run cold start contributes ~1.5–2.5s on the first request after idle. P5
 | Per-session orchestrator cost         | $0.10  | per-invocation | LiteLLM callback raises `BudgetExceededError`           |
 | Per-session adversarial cost          | $0.50  | per-invocation | LiteLLM callback raises `BudgetExceededError`           |
 | Per-user daily LLM cost               | $2.00  | 00:00 UTC      | Rate limiter rejects further `/chat` calls past the cap |
-| Per-user monthly LLM cost (soft)      | $20.00 | 1st of month   | Sentry warning at 80%; manual review at 100%            |
+| Per-user monthly LLM cost (soft)      | $20.00 | 1st of month   | PostHog warning event at 80%; manual review at 100%     |
 | Total project monthly LLM cost (hard) | $0     | 1st of month   | All providers on free tier; alarm at 80% of any limit   |
 
 ADR-0008 maps free-tier capacities; the cost-aware-llm-pipeline skill specifies routing.
@@ -1707,7 +1701,6 @@ For v1 portfolio phase (target: 50 users + 10 concurrent demo users during a Sho
 | Neon CU-h/month              | ~10     | 100 (free)       | 10x      |
 | Vercel bandwidth             | ~5 GB   | 100 GB (free)    | 20x      |
 | Langfuse traces/month        | ~5,000  | 50,000 (free)    | 10x      |
-| Sentry errors/month          | ~200    | 5,000 (free)     | 25x      |
 | PostHog events/month         | ~50,000 | 1,000,000 (free) | 20x      |
 | Cloudflare R2 storage        | ~1 GB   | 10 GB (free)     | 10x      |
 | Upstash Redis commands/day   | ~3,000  | 10,000 (free)    | 3.3x     |
@@ -1724,7 +1717,7 @@ v2 scale-out (1,000+ users):
 - Neon Launch (10 GB, always-on)
 - Postgres connection pooler (PgBouncer or Neon's built-in pooler)
 - Langfuse self-hosted on the existing Neon Postgres + a small Cloud Run worker
-- Sentry paid plan ($26/month) for 50K errors
+- PostHog paid plan if events exceed 1M/month
 
 v3 scale-out (10,000+ users) would require sharding evidence by user_id and is explicitly out of scope.
 
@@ -1890,7 +1883,7 @@ Better Stack heartbeat checks the DLQ depth every 5 minutes; alert fires if dept
 
 Every prompt is a YAML file under `apps/api/agents/prompts/<agent>/<version>.yaml`. The file is the source of truth, committed to the repo, reviewed in PRs.
 
-A CI workflow on `main` pushes any modified YAML to Langfuse and tags the new version with the `production` label. The runtime calls `langfuse.get_prompt("orchestrator", label="production")` on each agent invocation, with a 5-second timeout and a 60-second in-memory cache. On Langfuse failure, the loader falls back to the YAML file shipped in the container and emits a Sentry warning.
+A CI workflow on `main` pushes any modified YAML to Langfuse and tags the new version with the `production` label. The runtime calls `langfuse.get_prompt("orchestrator", label="production")` on each agent invocation, with a 5-second timeout and a 60-second in-memory cache. On Langfuse failure, the loader falls back to the YAML file shipped in the container and emits a PostHog warning event.
 
 #### Prompt schema
 
