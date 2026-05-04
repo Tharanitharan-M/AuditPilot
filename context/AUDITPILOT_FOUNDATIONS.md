@@ -271,7 +271,7 @@ Now let me walk you through what Maya actually sees when she uses AuditPilot. Th
 └─────────────────────────────────────────────────────┘
 ```
 
-Simple. Maya signs in with her Google account using OAuth. Supabase Auth handles this. She lands on the onboarding page next.
+Simple. Maya signs in with her Google account using OAuth. Clerk handles this. She lands on the onboarding page next.
 
 ### Page 2: Onboarding (Connect Tools)
 
@@ -647,7 +647,7 @@ graph TB
 
     subgraph "Data Layer"
         DB[(Neon Postgres<br/>+ pgvector<br/>Evidence/Runs/Policies)]
-        AUTH[Supabase Auth<br/>OAuth Flows]
+        AUTH[Clerk<br/>OAuth Flows]
         R2[Cloudflare R2<br/>PDFs/Reports]
         REDIS[Upstash Redis<br/>Cache/RateLimit]
     end
@@ -784,7 +784,7 @@ When you finish reading this, do these in order:
 
 6. Write `docs/adrs/0001-langgraph-runtime-choice.md` next. Use the comparisons in Part 7 of this document plus Category 1 of the TOOLING_LANDSCAPE document as your content.
 
-7. Register accounts: Vercel, Cloud Run, Neon, Supabase (Auth only), Cloudflare, Langfuse Cloud, Sentry, Grafana Cloud, PostHog, Better Stack, Oracle Cloud Always Free. Vercel Analytics and Speed Insights enable from the Vercel dashboard once your project is deployed.
+7. Register accounts: Vercel, Cloud Run, Neon, Clerk, Cloudflare, Langfuse Cloud, Sentry, Grafana Cloud, PostHog, Better Stack, Oracle Cloud Always Free. Vercel Analytics and Speed Insights enable from the Vercel dashboard once your project is deployed.
 
 8. Wire LangGraph 1.x + Pydantic AI + LiteLLM with Gemini 2.5 Flash-Lite in the first week. Get one MCP tool call working end-to-end before adding more agents.
 

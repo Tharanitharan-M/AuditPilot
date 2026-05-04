@@ -63,7 +63,7 @@ When the two goals conflict, Goal 1 wins. In practice they rarely conflict — t
 | **Database** | **Neon Postgres + pgvector** | Scale-to-zero, branching, free |
 | **Object storage** | **Cloudflare R2** | 10GB + zero egress fees |
 | **Cache + rate limit** | **Upstash Redis** | Serverless-friendly free tier |
-| **Auth** | **Supabase Auth** | OAuth flows only (50k MAU free) |
+| **Auth** | **Clerk** | OAuth flows + pre-built Next.js components (10k MAU free) |
 | **Eval (general)** | **Promptfoo** | YAML in repo, GitHub Actions native |
 | **Eval (RAG)** | **RAGAS** | Faithfulness, answer relevancy, context precision/recall |
 | **LLM observability** | **Langfuse** | OSS MIT, OTel-native, 50k events/mo free |
@@ -177,17 +177,18 @@ We complement Promptfoo (YAML-driven, GitHub Actions native, 100-case gold set) 
 
 Continuous eval: every gap discovered by the AdversarialAuditor gets logged to a Langfuse dataset and added to the regression suite. **The project's evals get better over time.**
 
-### 2.8 Why Supabase Auth and not Clerk
+### 2.8 Why Clerk and not Supabase Auth
 
-We considered Clerk seriously. Clerk has the best developer experience in the auth category — drop-in `<SignIn />` and `<UserButton />` components save real time. We chose Supabase Auth instead for three concrete reasons:
+We are not using Supabase for the database (Neon) or storage (Cloudflare R2), so standalone Supabase Auth introduces a vendor for one feature. Clerk's pre-built auth components (`<SignIn />`, `<UserButton />`, `<OrganizationSwitcher />`) materially reduce frontend implementation work in Next.js 15 and speed up Sprint 3 delivery.
 
-1. **Free tier is 5x larger.** Supabase: 50k MAU. Clerk: 10k MAU. Neither matters for portfolio scale, but if AuditPilot accidentally goes viral on Show HN, Supabase is safer.
-2. **MFA is included.** Supabase includes MFA in the free tier. Clerk charges **$100/mo for MFA as a separate add-on** on top of the $25/mo Pro plan. For a SOC 2 readiness product where MFA is a control we need to demonstrate, this matters symbolically as well as financially.
-3. **Clerk's killer feature is irrelevant to us.** Clerk's `<OrganizationSwitcher />` and B2B team management is genuinely best-in-class. AuditPilot is a single-tenant demo. Paying the Clerk DX premium for features we do not use is a poor trade.
+Trade-off accepted:
 
-We use Supabase **only for authentication** — not Postgres (Neon), not Storage (Cloudflare R2), not Edge Functions (Cloud Run), not Realtime (SSE). Supabase earns its keep for one job: identity.
+1. **Smaller free tier.** Clerk provides 10k MAU free vs Supabase Auth at 50k MAU.
+2. **Higher per-MAU cost after free tier.** Clerk pricing scales faster than Supabase at high MAU.
 
-The discipline: six auth providers evaluated (Clerk, Auth0, NextAuth, Firebase Auth, WorkOS, Supabase Auth). Supabase Auth chosen because the 50k MAU free tier and included MFA fit a $0/month OSS reference architecture better than Clerk's 10k MAU plus $100/mo MFA add-on. Clerk would be the right pick for a paid B2B SaaS where the developer experience and team management features earn their cost. AuditPilot is not that.
+At portfolio scale, both trade-offs are not material. The engineering-time savings are more valuable than the higher-volume pricing profile.
+
+The discipline: six auth providers were evaluated (Clerk, Auth0, NextAuth, Firebase Auth, WorkOS, Supabase Auth). Clerk is chosen for this reference architecture because it removes frontend auth plumbing while fitting our actual usage constraints.
 
 ---
 
@@ -203,7 +204,7 @@ The earlier framing of "4 weeks" was aspirational. Honest scope for a solo build
 |---|---|---|
 | 0 (May 1–5) | Sprint 0 | Documentation only — PRD, SRS, 9 ADRs, system design, user stories, repo scaffold |
 | 1 (May 6–12) | Sprints 1, 2 | `compliance-kb-mcp` v0.1 buildable (publish deferred), backend skeleton + FastAPI ↔ LangGraph ↔ AI SDK 6 SSE bridge |
-| 2 (May 13–19) | Sprints 3, 4 | Supabase Auth + GitHub OAuth, AuditOrchestrator wired to UI, **`compliance-kb-mcp` v0.1.0 published to npm + PyPI** after orchestrator integration confirms the API |
+| 2 (May 13–19) | Sprints 3, 4 | Clerk auth + GitHub OAuth, AuditOrchestrator wired to UI, **`compliance-kb-mcp` v0.1.0 published to npm + PyPI** after orchestrator integration confirms the API |
 | 3 (May 20–26) | Sprints 5, 6 | Evidence collection + storage, HITL via `interrupt()`, policy drafting + DOCX export |
 | 4 (May 27–Jun 2) | Sprints 7, 8 | Questionnaire + SIG-Lite XLSX flow, AdversarialAuditor + A2A v1.0 cross-process |
 | 5 (Jun 3–9) | Sprints 9, 10 | Drift watcher + observability stack, eval suite + judge validation (TPR/TNR/Cohen's kappa) |
@@ -236,7 +237,7 @@ If you fall behind, cut in this order:
 ### Phase 1 (Week 5 end): Public launch
 
 - LinkedIn launch post + YouTube demo video + 3000–5000 word teardown blog
-- Demo gated behind Supabase Auth so anonymous users do not burn LLM quota
+- Demo gated behind Clerk auth so anonymous users do not burn LLM quota
 - Tag swyx, Hamel Husain, Eugene Yan thoughtfully (do not spam)
 - Show HN on Tuesday or Wednesday morning ET with embedded video
 - Product Hunt the following week

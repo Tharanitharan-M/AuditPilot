@@ -50,7 +50,7 @@ Plus four community MCP servers (forked, security-reviewed) for read-only OAuth 
 | Frontend | Next.js 15 + Vercel AI SDK 6 + shadcn/ui |
 | LLM | Gemini 2.5 Flash-Lite via LiteLLM |
 | Database | Neon Postgres + pgvector |
-| Auth | Supabase Auth |
+| Auth | Clerk |
 | Storage | Cloudflare R2 |
 | Cache | Upstash Redis |
 | LLM observability | Langfuse |
@@ -109,7 +109,7 @@ Major decisions are documented as ADRs in [`docs/adrs/`](docs/adrs/). Quick summ
 - **LangGraph over Google ADK** — LangGraph appears in ~25–30% of 2026 AI engineering job listings and ships with a no-breaking-changes commitment through 2.0. ADK has under 1% industry adoption and had 31 minor releases with breaking changes in 12 months. (ADR-0001)
 - **Three agents over eight** — Backed by Anthropic's "Building Effective Agents," Cognition AI's single-writer principle, and OpenAI's orchestration guide. Fewer agents means less token waste, faster traces, and smaller error blast radius. (ADR-0002)
 - **Read-only by design** — Read-only OAuth scopes only. This is both a legal decision (AICPA UPAct) and a product one. Vanta, the leading commercial product in this space, works the same way. (ADR-0004)
-- **Supabase Auth over Clerk** — 50k MAU free (vs. Clerk's 10k), MFA included free (vs. Clerk's $100/mo add-on), and MFA is a SOC 2 control we need to demonstrate. (ADR-0008)
+- **Clerk over standalone Supabase Auth** — we already use Neon for database and Cloudflare R2 for storage, so Clerk avoids carrying Supabase for a single feature while giving pre-built Next.js auth components (`<SignIn />`, `<UserButton />`, `<OrganizationSwitcher />`). The 10k MAU free tier covers portfolio scale. (ADR-0008)
 - **Redis Streams for background jobs** — Real queue semantics (consumer groups, ACK, dead-letter) on infrastructure we already pay zero for. Kafka would have been over-engineering at this scale. (ADR-0010)
 - **Langfuse-backed prompt management with local fallback** — YAML in repo as source of truth, pushed to Langfuse on deploy, runtime fetch with 60-second cache and local fallback on outage. (ADR-0011)
 - **Public demo account with shared state** — One demo account with seeded synthetic data, a Reset button, and a daily auto-reset cron. Casual visitors see a working dashboard in 90 seconds without sign-up. (ADR-0012)

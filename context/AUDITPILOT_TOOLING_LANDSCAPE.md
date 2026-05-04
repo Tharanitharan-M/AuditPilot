@@ -5,6 +5,7 @@
 **How to read this:** Each category lists the tools we evaluated, what each does, our choice with reasoning, and the deliberate "no" decisions with reasoning. Every "no" is a defensible design-review answer.
 
 **Companion documents:**
+
 - `AUDITPILOT_FOUNDATIONS.md` — domain knowledge and user flow
 - `AUDITPILOT_CONTEXT.md` — strategic decisions and the 2026 AI engineering landscape
 
@@ -24,17 +25,17 @@ The combination is the cleanest senior-coded architecture available in 2026: Lan
 
 ### Alternatives considered
 
-| Tool | What it is | Why we did not pick it |
-|---|---|---|
-| **Google ADK 1.31.x** | Google's agent runtime with native A2A and Vertex AI integration | We seriously considered this. ADK has clean primitives like `ParallelAgent` and `SequentialAgent`, plus the strongest A2A v1.0 first-party support. Three reasons we passed: (1) ADK 2.0 is in Beta with explicit breaking changes from 1.x; ADK 1.x had 31 minor releases in 12 months with breaking changes between minors. LangGraph 1.0 has the opposite stability commitment. (2) ADK appears in <1% of 2026 AI engineer JDs versus LangGraph's 25-30%. (3) For an open-source reference architecture, LangGraph's 30+ named external production deployments dwarf ADK's roughly four (Comcast Xfinity Assistant, PayPal, Geotab, Genpact, plus Google's internal dogfood). |
-| **LangChain** | Kitchen-sink LLM framework with 700+ integrations | LangChain is the parent ecosystem; LangGraph is the production-grade subset. Using bare LangChain in 2026 reads as legacy. We use LangGraph specifically because it is the production-graph subset of LangChain, not the full kitchen sink. |
-| **OpenAI Agents SDK** | OpenAI's production agent framework with explicit handoffs | OpenAI-only. Does not fit our multi-provider routing strategy. Would lock us into OpenAI pricing. The `handoffs` pattern is also closer to the multi-agent anti-pattern that Cognition AI's "Don't Build Multi-Agents" essay warned against. |
-| **Microsoft Agent Framework** | Replaces AutoGen, .NET-friendly, enterprise-grade | Microsoft ecosystem. Our backend is Python on Cloud Run. No reason to add complexity. |
-| **AutoGen / AG2** | Conversational multi-agent (now AG2 after community fork) | Officially in maintenance mode since September 2025. Microsoft is consolidating into Agent Framework. Multiple 2026 reviews call it "near-zero security mechanisms, suitable for academic research and rapid experimentation, not for enterprise production." |
-| **CrewAI** | Role-based agent teams with intuitive API and visual editor | Lowest learning curve in the space. The crew metaphor is the exact peer-agent pattern Cognition warned against. CrewAI itself is fine for some use cases but its mental model conflicts with our chosen single-writer architecture. |
-| **Mastra** | TypeScript-native agent framework | TypeScript-only. Our backend is Python (FastAPI on Cloud Run). |
-| **Smolagents** | Hugging Face minimalist agent framework | Research-flavored, not production-grade. |
-| **Amazon Bedrock AgentCore** | AWS managed agent service | AWS lock-in, our deployment target is Cloud Run not AWS, weaker free tier. |
+| Tool                          | What it is                                                       | Why we did not pick it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Google ADK 1.31.x**         | Google's agent runtime with native A2A and Vertex AI integration | We seriously considered this. ADK has clean primitives like `ParallelAgent` and `SequentialAgent`, plus the strongest A2A v1.0 first-party support. Three reasons we passed: (1) ADK 2.0 is in Beta with explicit breaking changes from 1.x; ADK 1.x had 31 minor releases in 12 months with breaking changes between minors. LangGraph 1.0 has the opposite stability commitment. (2) ADK appears in <1% of 2026 AI engineer JDs versus LangGraph's 25-30%. (3) For an open-source reference architecture, LangGraph's 30+ named external production deployments dwarf ADK's roughly four (Comcast Xfinity Assistant, PayPal, Geotab, Genpact, plus Google's internal dogfood). |
+| **LangChain**                 | Kitchen-sink LLM framework with 700+ integrations                | LangChain is the parent ecosystem; LangGraph is the production-grade subset. Using bare LangChain in 2026 reads as legacy. We use LangGraph specifically because it is the production-graph subset of LangChain, not the full kitchen sink.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **OpenAI Agents SDK**         | OpenAI's production agent framework with explicit handoffs       | OpenAI-only. Does not fit our multi-provider routing strategy. Would lock us into OpenAI pricing. The `handoffs` pattern is also closer to the multi-agent anti-pattern that Cognition AI's "Don't Build Multi-Agents" essay warned against.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Microsoft Agent Framework** | Replaces AutoGen, .NET-friendly, enterprise-grade                | Microsoft ecosystem. Our backend is Python on Cloud Run. No reason to add complexity.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **AutoGen / AG2**             | Conversational multi-agent (now AG2 after community fork)        | Officially in maintenance mode since September 2025. Microsoft is consolidating into Agent Framework. Multiple 2026 reviews call it "near-zero security mechanisms, suitable for academic research and rapid experimentation, not for enterprise production."                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **CrewAI**                    | Role-based agent teams with intuitive API and visual editor      | Lowest learning curve in the space. The crew metaphor is the exact peer-agent pattern Cognition warned against. CrewAI itself is fine for some use cases but its mental model conflicts with our chosen single-writer architecture.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Mastra**                    | TypeScript-native agent framework                                | TypeScript-only. Our backend is Python (FastAPI on Cloud Run).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Smolagents**                | Hugging Face minimalist agent framework                          | Research-flavored, not production-grade.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Amazon Bedrock AgentCore**  | AWS managed agent service                                        | AWS lock-in, our deployment target is Cloud Run not AWS, weaker free tier.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### Design-review summary
 
@@ -52,15 +53,15 @@ Langfuse is open-source (MIT), framework-agnostic, and has the most polished Lan
 
 ### Alternatives considered
 
-| Tool | What it is | Why we did not pick it |
-|---|---|---|
-| **LangSmith** | LangChain's commercial observability product | The "official" LangGraph pairing, but closed source and only 5k traces/month free (10x lower than Langfuse). For an open-source reference architecture, Langfuse's MIT license is the right fit. We document this trade-off explicitly — LangSmith would be the natural upgrade for paid teams. |
-| **Pydantic Logfire** | Pydantic team's observability product | Excellent OpenTelemetry-native tracing from the same team as Pydantic AI. Free tier is generous. Considered seriously. Langfuse won on existing familiarity and broader ecosystem. We may swap to Logfire later — they are interchangeable at the OTel layer. |
-| **Arize Phoenix** | OpenTelemetry-native observability, ELv2 license | Genuinely good. Considered. Langfuse won on existing familiarity. |
-| **Helicone** | Open-source LLM observability | Solid alternative. Langfuse wins on richer prompt management UI and the dataset feature for continuous eval. |
-| **Opik (Comet)** | Open-source observability | Newer entrant. Langfuse has more momentum. |
-| **Weights & Biases Weave** | W&B's LLM observability | ML-research orientation, weaker for production agent traces. |
-| **Braintrust** | Closed-source eval and tracing platform | Recently raised $80M at $800M valuation, strongest CI-eval-release-gate story. Closed source is the dealbreaker for an OSS reference architecture. We mention it as the natural commercial upgrade. |
+| Tool                       | What it is                                       | Why we did not pick it                                                                                                                                                                                                                                                                          |
+| -------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **LangSmith**              | LangChain's commercial observability product     | The "official" LangGraph pairing, but closed source and only 5k traces/month free (10x lower than Langfuse). For an open-source reference architecture, Langfuse's MIT license is the right fit. We document this trade-off explicitly — LangSmith would be the natural upgrade for paid teams. |
+| **Pydantic Logfire**       | Pydantic team's observability product            | Excellent OpenTelemetry-native tracing from the same team as Pydantic AI. Free tier is generous. Considered seriously. Langfuse won on existing familiarity and broader ecosystem. We may swap to Logfire later — they are interchangeable at the OTel layer.                                   |
+| **Arize Phoenix**          | OpenTelemetry-native observability, ELv2 license | Genuinely good. Considered. Langfuse won on existing familiarity.                                                                                                                                                                                                                               |
+| **Helicone**               | Open-source LLM observability                    | Solid alternative. Langfuse wins on richer prompt management UI and the dataset feature for continuous eval.                                                                                                                                                                                    |
+| **Opik (Comet)**           | Open-source observability                        | Newer entrant. Langfuse has more momentum.                                                                                                                                                                                                                                                      |
+| **Weights & Biases Weave** | W&B's LLM observability                          | ML-research orientation, weaker for production agent traces.                                                                                                                                                                                                                                    |
+| **Braintrust**             | Closed-source eval and tracing platform          | Recently raised $80M at $800M valuation, strongest CI-eval-release-gate story. Closed source is the dealbreaker for an OSS reference architecture. We mention it as the natural commercial upgrade.                                                                                             |
 
 ---
 
@@ -74,13 +75,13 @@ RAGAS complements Promptfoo specifically for the AuditOrchestrator's retrieval s
 
 ### Alternatives considered
 
-| Tool | What it is | Why we did not pick it |
-|---|---|---|
-| **DeepEval** | Pytest-style eval with 50+ metrics | Strong alternative. We stay on Promptfoo because YAML configs in the repo are easier to read at a glance than pytest fixtures, and easier to track in version control alongside the prompts under test. We mention DeepEval in the ADR as the natural choice for teams already standardized on pytest. |
-| **Braintrust** | Commercial eval platform with CI gates | Closed source, paid. Mentioned as the natural commercial upgrade. |
-| **LangSmith eval** | LangChain's bundled eval | We use LangSmith-compatible patterns but stay on Promptfoo for OSS license and YAML transparency. |
-| **TruLens** | Snowflake-acquired, OTel-instrumented | Snowflake-flavored. We have no Snowflake. |
-| **Inspect AI** | UK AI Security Institute, capability/safety benchmarks | Different use case (model-level capability evals, not application-level quality). |
+| Tool               | What it is                                             | Why we did not pick it                                                                                                                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **DeepEval**       | Pytest-style eval with 50+ metrics                     | Strong alternative. We stay on Promptfoo because YAML configs in the repo are easier to read at a glance than pytest fixtures, and easier to track in version control alongside the prompts under test. We mention DeepEval in the ADR as the natural choice for teams already standardized on pytest. |
+| **Braintrust**     | Commercial eval platform with CI gates                 | Closed source, paid. Mentioned as the natural commercial upgrade.                                                                                                                                                                                                                                      |
+| **LangSmith eval** | LangChain's bundled eval                               | We use LangSmith-compatible patterns but stay on Promptfoo for OSS license and YAML transparency.                                                                                                                                                                                                      |
+| **TruLens**        | Snowflake-acquired, OTel-instrumented                  | Snowflake-flavored. We have no Snowflake.                                                                                                                                                                                                                                                              |
+| **Inspect AI**     | UK AI Security Institute, capability/safety benchmarks | Different use case (model-level capability evals, not application-level quality).                                                                                                                                                                                                                      |
 
 ---
 
@@ -92,13 +93,13 @@ The AuditOrchestrator does retrieval over the SOC 2 Trust Services Criteria know
 
 ### Alternatives considered
 
-| Tool | What it is | Why we did not pick it |
-|---|---|---|
-| **LlamaIndex** | RAG-first framework, advanced retrieval, 300+ data connectors | LlamaIndex would be the right answer if retrieval were AuditPilot's main feature. Retrieval here is one capability among many; the orchestrator does a lot more than RAG. We avoid the framework abstraction we do not need. We mention LlamaIndex in the ADR as the right answer for retrieval-heavy applications. |
-| **LangChain RAG** | Generic chains | Same issue as bare LangChain. We use LangGraph specifically; we do not need LangChain's RAG abstractions. |
-| **Haystack** | Pipeline-first, deepset, enterprise-grade | Pipeline mental model is heavier than what we need. |
-| **DSPy** | Auto-optimize prompts and retrieval | Research-focused. Adds complexity for unclear portfolio benefit. |
-| **FlashRAG** | Lightweight RAG | Newer, less production-tested. |
+| Tool              | What it is                                                    | Why we did not pick it                                                                                                                                                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **LlamaIndex**    | RAG-first framework, advanced retrieval, 300+ data connectors | LlamaIndex would be the right answer if retrieval were AuditPilot's main feature. Retrieval here is one capability among many; the orchestrator does a lot more than RAG. We avoid the framework abstraction we do not need. We mention LlamaIndex in the ADR as the right answer for retrieval-heavy applications. |
+| **LangChain RAG** | Generic chains                                                | Same issue as bare LangChain. We use LangGraph specifically; we do not need LangChain's RAG abstractions.                                                                                                                                                                                                           |
+| **Haystack**      | Pipeline-first, deepset, enterprise-grade                     | Pipeline mental model is heavier than what we need.                                                                                                                                                                                                                                                                 |
+| **DSPy**          | Auto-optimize prompts and retrieval                           | Research-focused. Adds complexity for unclear portfolio benefit.                                                                                                                                                                                                                                                    |
+| **FlashRAG**      | Lightweight RAG                                               | Newer, less production-tested.                                                                                                                                                                                                                                                                                      |
 
 ---
 
@@ -110,13 +111,13 @@ The same database that stores controls, evidence, runs, policies, and HITL appro
 
 ### Alternatives considered
 
-| Tool | What it is | Why we did not pick it |
-|---|---|---|
-| **Pinecone** | Managed vector DB | Paid ($50/month minimum). Rules it out for $0/month constraint. |
-| **Qdrant** | Open-source vector DB, excellent benchmarks | Genuinely great. Adding another vendor for our embedding scale is not worth it. We mention Qdrant in the ADR as the right choice if we ever exceed 1M embeddings. |
-| **Weaviate** | Open-source, strong hybrid search | Same reasoning as Qdrant. |
-| **Milvus** | Distributed vector DB | Overkill for our scale. |
-| **Chroma** | Embeddable vector DB | Less production-tested than pgvector at our scale. |
+| Tool         | What it is                                  | Why we did not pick it                                                                                                                                            |
+| ------------ | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pinecone** | Managed vector DB                           | Paid ($50/month minimum). Rules it out for $0/month constraint.                                                                                                   |
+| **Qdrant**   | Open-source vector DB, excellent benchmarks | Genuinely great. Adding another vendor for our embedding scale is not worth it. We mention Qdrant in the ADR as the right choice if we ever exceed 1M embeddings. |
+| **Weaviate** | Open-source, strong hybrid search           | Same reasoning as Qdrant.                                                                                                                                         |
+| **Milvus**   | Distributed vector DB                       | Overkill for our scale.                                                                                                                                           |
+| **Chroma**   | Embeddable vector DB                        | Less production-tested than pgvector at our scale.                                                                                                                |
 
 ---
 
@@ -134,12 +135,12 @@ A2UI is Google's declarative server-driven UI protocol launched April 17, 2026. 
 
 ### Alternatives considered
 
-| Tool | What it is | Why we did not pick it |
-|---|---|---|
-| **A2UI v0.9** | Google's declarative agent UI protocol | Beta, zero JD presence, replaceable with shadcn form. |
-| **Bare React with manual SSE** | Roll our own | Vercel AI SDK 6 is the right level of abstraction. We do not need to reinvent it. |
-| **AG-UI** | Streaming agent events to UI | We use AG-UI patterns inside our Mission Control page for the live agent topology view. Not a runtime, just a streaming convention. |
-| **React Flow** | For agent topology visualization | Yes, we use this for `/mission-control` to render the live LangGraph state visually. |
+| Tool                           | What it is                             | Why we did not pick it                                                                                                              |
+| ------------------------------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **A2UI v0.9**                  | Google's declarative agent UI protocol | Beta, zero JD presence, replaceable with shadcn form.                                                                               |
+| **Bare React with manual SSE** | Roll our own                           | Vercel AI SDK 6 is the right level of abstraction. We do not need to reinvent it.                                                   |
+| **AG-UI**                      | Streaming agent events to UI           | We use AG-UI patterns inside our Mission Control page for the live agent topology view. Not a runtime, just a streaming convention. |
+| **React Flow**                 | For agent topology visualization       | Yes, we use this for `/mission-control` to render the live LangGraph state visually.                                                |
 
 ---
 
@@ -150,6 +151,7 @@ A2UI is Google's declarative server-driven UI protocol launched April 17, 2026. 
 MCP was donated to the Linux Foundation in December 2025. Mike Krieger (Anthropic CPO) called it "the most important thing Anthropic has shipped... the fastest-growing standard in tech history." It appears in 17% of 2026 AI Engineer JDs and is the fastest-growing framework keyword of all. Building five custom MCP servers and publishing them to npm and PyPI is the rare, high-signal portfolio artifact.
 
 Our five servers:
+
 1. **`@auditpilot/compliance-kb-mcp`** — SOC 2 Trust Services Criteria as queryable knowledge base
 2. **`@auditpilot/evidence-store-mcp`** — typed read-only access to collected evidence
 3. **`@auditpilot/questionnaire-mcp`** — SIG-Lite, CAIQ, ISO 27001 Annex A schema parsers
@@ -160,12 +162,12 @@ All five published under Apache 2.0. Each one stands alone — someone forking A
 
 ### Alternatives considered
 
-| Tool | What it is | Why we did not pick it |
-|---|---|---|
-| **Function calling (raw provider)** | Direct OpenAI / Anthropic / Gemini function calls | We wrap these through MCP. MCP is the abstraction over function calling that survives provider changes. |
-| **LangChain tools** | `BaseTool` and `@tool` decorator | Tied to LangChain's ecosystem, not a portable standard. MCP is the portable standard. |
-| **OpenAI Plugins** | Deprecated | Deprecated. Not a real option. |
-| **OpenAPI / function calling JSON schemas only** | Just specs, no runtime | MCP gives us the spec plus a runtime plus an ecosystem. |
+| Tool                                             | What it is                                        | Why we did not pick it                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Function calling (raw provider)**              | Direct OpenAI / Anthropic / Gemini function calls | We wrap these through MCP. MCP is the abstraction over function calling that survives provider changes. |
+| **LangChain tools**                              | `BaseTool` and `@tool` decorator                  | Tied to LangChain's ecosystem, not a portable standard. MCP is the portable standard.                   |
+| **OpenAI Plugins**                               | Deprecated                                        | Deprecated. Not a real option.                                                                          |
+| **OpenAPI / function calling JSON schemas only** | Just specs, no runtime                            | MCP gives us the spec plus a runtime plus an ecosystem.                                                 |
 
 ---
 
@@ -177,12 +179,12 @@ LiteLLM is the industry standard for multi-provider routing. We use it to fail o
 
 ### Alternatives considered
 
-| Tool | What it is | Why we did not pick it |
-|---|---|---|
-| **Portkey** | Commercial alternative | Paid. LiteLLM is the OSS standard. |
-| **OpenRouter** | Routing service with bring-your-own-keys | Adds latency layer. We have free Gemini quota. |
-| **Helicone Gateway** | Helicone's routing product | Less mature than LiteLLM. |
-| **Direct SDK calls only** | Skip the router | Considered. LiteLLM is worth the small dependency for the failover behavior we want. |
+| Tool                      | What it is                               | Why we did not pick it                                                               |
+| ------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Portkey**               | Commercial alternative                   | Paid. LiteLLM is the OSS standard.                                                   |
+| **OpenRouter**            | Routing service with bring-your-own-keys | Adds latency layer. We have free Gemini quota.                                       |
+| **Helicone Gateway**      | Helicone's routing product               | Less mature than LiteLLM.                                                            |
+| **Direct SDK calls only** | Skip the router                          | Considered. LiteLLM is worth the small dependency for the failover behavior we want. |
 
 ---
 
@@ -202,27 +204,27 @@ The killer combination is **Sentry plus PostHog**: their auto-correlation means 
 
 ### What we deliberately do not use
 
-| Tool | Why not |
-|---|---|
-| **Datadog** | $31/host/month plus per-span charges. Disqualifying at our scale. Mentioned as the commercial upgrade. |
-| **New Relic** | Heavyweight. Mentioned as alternative. |
+| Tool              | Why not                                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **Datadog**       | $31/host/month plus per-span charges. Disqualifying at our scale. Mentioned as the commercial upgrade.                       |
+| **New Relic**     | Heavyweight. Mentioned as alternative.                                                                                       |
 | **Grafana Cloud** | Yes, we use this — for backend metrics specifically (latency, throughput, error rate via OTel). 10k series, 50 GB logs free. |
 
 ---
 
 ## Category 10: Backend Infrastructure
 
-### Our choice: **Vercel + Cloud Run + Neon Postgres + Cloudflare R2 + Upstash Redis + Supabase Auth**
+### Our choice: **Vercel + Cloud Run + Neon Postgres + Cloudflare R2 + Upstash Redis + Clerk**
 
-| Component | Choice | Why |
-|---|---|---|
-| Frontend hosting | **Vercel Hobby** | Free, Next.js 15 native, edge-deployed. The default for Next.js. |
-| Backend agent runtime | **Cloud Run** | 360k vCPU-seconds/month free, scale-to-zero, container-native. |
-| Database | **Neon Postgres** with pgvector | Scale-to-zero with 350ms cold start, branching, no idle-pause penalty. |
-| File storage | **Cloudflare R2** | 10GB free + zero egress fees. Better than S3 or Supabase Storage on price. |
-| Cache + rate limit | **Upstash Redis** | 500K commands/month free, serverless-friendly, REST API. |
-| Auth | **Supabase Auth** | 50k MAU free, OAuth flows for GitHub/Google/Slack. We use Supabase only for auth, not for Postgres or storage. |
-| Cron jobs | **Vercel Cron** (default) or **Cloud Run jobs** | Drift watcher runs every 6 hours. Vercel Cron is one config line. |
+| Component             | Choice                                          | Why                                                                                          |
+| --------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Frontend hosting      | **Vercel Hobby**                                | Free, Next.js 15 native, edge-deployed. The default for Next.js.                             |
+| Backend agent runtime | **Cloud Run**                                   | 360k vCPU-seconds/month free, scale-to-zero, container-native.                               |
+| Database              | **Neon Postgres** with pgvector                 | Scale-to-zero with 350ms cold start, branching, no idle-pause penalty.                       |
+| File storage          | **Cloudflare R2**                               | 10GB free + zero egress fees. Better than S3 or Supabase Storage on price.                   |
+| Cache + rate limit    | **Upstash Redis**                               | 500K commands/month free, serverless-friendly, REST API.                                     |
+| Auth                  | **Clerk**                                       | 10k MAU free, OAuth flows for GitHub/Google/Slack, best-in-class Next.js 15 auth components. |
+| Cron jobs             | **Vercel Cron** (default) or **Cloud Run jobs** | Drift watcher runs every 6 hours. Vercel Cron is one config line.                            |
 
 ### Optional Kubernetes path
 
@@ -258,26 +260,26 @@ Each service (`apps/web`, `apps/api`, `apps/auditor`) gets its own multi-stage D
 
 ## Category 12: Authentication
 
-### Our choice: **Supabase Auth** (50k MAU free tier, OAuth flows only)
+### Our choice: **Clerk** (10k MAU free tier, OAuth flows + pre-built UI)
 
-We use Supabase **only for authentication** — not for Postgres (we use Neon), not for Storage (we use Cloudflare R2), not for Edge Functions (we use Cloud Run), not for Realtime (we use SSE from FastAPI). Supabase Auth handles the OAuth flow that lets Maya sign in with Google and grant read-only OAuth scopes for GitHub, Gmail, Slack, and Calendar. That's the entire job.
+We use Clerk for authentication and session management while keeping Neon for data and Cloudflare R2 for storage. This avoids carrying Supabase as a single-feature dependency and lets us use Clerk's production-ready Next.js components (`<SignIn />`, `<UserButton />`, `<OrganizationSwitcher />`) to reduce implementation time.
 
-The 50k MAU free tier is 5x larger than Clerk's, MFA is included for free (Clerk charges $100/mo for MFA as an add-on), and it integrates cleanly with Next.js Server Components via `@supabase/ssr`.
+Trade-off accepted: Clerk has a smaller free tier and steeper per-MAU pricing after 10k vs Supabase Auth. At portfolio scale, this is not material.
 
 ### Alternatives considered
 
-| Tool | What it is | Why we did not pick it |
-|---|---|---|
-| **Clerk** | Modern auth platform with drop-in `<SignIn />`, `<UserButton />`, `<OrganizationSwitcher />` components; best DX in the category | Genuinely excellent for B2B SaaS with team management. Three reasons we passed: (1) Free tier is **10k MAU vs Supabase's 50k** — 5x smaller. (2) Clerk's killer feature is organization management, which AuditPilot does not use (single-tenant demo). We would be paying the DX premium for features we do not need. (3) Pricing trap: past 10k MAU is $25/mo + $0.02/MAU + $100/mo for MFA add-on. Supabase past 50k MAU is $25/mo + $0.00325/MAU with MFA included. **6x cheaper per user at scale.** Clerk would be the right answer for a paid B2B SaaS with $-revenue per customer; it is the wrong answer for an OSS reference architecture. |
-| **Auth0** | Enterprise auth platform with SAML, SSO, comprehensive compliance | Free tier is **7,500 MAU**, smallest of the major options. Pricing escalates to $500+/month at 100k MAU vs Supabase's ~$25/month. Auth0's enterprise features (SAML SSO, SCIM provisioning, advanced threat detection) are real but irrelevant for a portfolio project. Worth it only when enterprise SSO is a sales requirement. |
-| **NextAuth.js / Auth.js** | Open-source authentication library, fully self-hosted | Genuinely good and free. Considered. The catch is "free" is misleading — you pay in maintenance time. Every feature Clerk and Supabase ship in their dashboard (org management, MFA, user dashboards, reset flows) you have to build. For a 4-week portfolio project, the maintenance burden is not worth it. NextAuth is the right answer for production internal tools where you need full control. |
-| **Firebase Auth** | Google Cloud authentication, 50k MAU free tier | Tied with Supabase on free tier scale. Loses on developer experience for modern Next.js stacks — the Firebase SDK is built for client-side React, and the Server Components / RSC integration is weaker than Supabase's. Also locks the project into Google Cloud ecosystem more than we want. |
-| **WorkOS AuthKit** | Enterprise-focused authentication with hosted UI, organization management | 1M MAU free for user management. Generous, but enterprise SSO connections cost $125/connection. WorkOS is optimized for B2B SaaS selling to enterprises that demand SAML SSO. Not relevant for AuditPilot. |
-| **AWS Cognito** | AWS-native auth with Lambda integration | Our deployment target is Cloud Run, not AWS. No reason to add AWS to the stack just for auth. |
+| Tool                      | What it is                                                                | Why we did not pick it                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Supabase Auth**         | Standalone auth product with generous free tier and OAuth support         | Strong product, but in this architecture it would add a vendor for one feature because data and storage are already on Neon + R2. Clerk reduces frontend auth implementation effort with Next.js-native primitives.                                                                                                                                                                                   |
+| **Auth0**                 | Enterprise auth platform with SAML, SSO, comprehensive compliance         | Free tier is **7,500 MAU**, smallest of the major options. Pricing escalates to $500+/month at 100k MAU vs Supabase's ~$25/month. Auth0's enterprise features (SAML SSO, SCIM provisioning, advanced threat detection) are real but irrelevant for a portfolio project. Worth it only when enterprise SSO is a sales requirement.                                                                     |
+| **NextAuth.js / Auth.js** | Open-source authentication library, fully self-hosted                     | Genuinely good and free. Considered. The catch is "free" is misleading — you pay in maintenance time. Every feature Clerk and Supabase ship in their dashboard (org management, MFA, user dashboards, reset flows) you have to build. For a 4-week portfolio project, the maintenance burden is not worth it. NextAuth is the right answer for production internal tools where you need full control. |
+| **Firebase Auth**         | Google Cloud authentication, 50k MAU free tier                            | Tied with Supabase on free tier scale. Loses on developer experience for modern Next.js stacks — the Firebase SDK is built for client-side React, and the Server Components / RSC integration is weaker than Supabase's. Also locks the project into Google Cloud ecosystem more than we want.                                                                                                        |
+| **WorkOS AuthKit**        | Enterprise-focused authentication with hosted UI, organization management | 1M MAU free for user management. Generous, but enterprise SSO connections cost $125/connection. WorkOS is optimized for B2B SaaS selling to enterprises that demand SAML SSO. Not relevant for AuditPilot.                                                                                                                                                                                            |
+| **AWS Cognito**           | AWS-native auth with Lambda integration                                   | Our deployment target is Cloud Run, not AWS. No reason to add AWS to the stack just for auth.                                                                                                                                                                                                                                                                                                         |
 
 ### Design-review summary
 
-> "I evaluated six auth providers — Supabase Auth, Clerk, Auth0, NextAuth, Firebase Auth, and WorkOS. I chose Supabase Auth because the free tier is 50k MAU versus Clerk's 10k, MFA is included free (Clerk charges $100/mo as an add-on), and I only need OAuth flows for GitHub, Gmail, Slack, and Calendar — not B2B team management. I considered Clerk seriously because the developer experience and Next.js components are best-in-class, but the pricing trap past 10k MAU and the MFA cost made it the wrong choice for an open-source reference architecture. Clerk would be my pick for a paid B2B SaaS with paying customers; it is not the pick for AuditPilot's scale and economics."
+> "I evaluated six auth providers — Clerk, Supabase Auth, Auth0, NextAuth, Firebase Auth, and WorkOS. I chose Clerk because we already use Neon for database and Cloudflare R2 for storage, so standalone Supabase Auth adds a vendor for one feature. Clerk's Next.js components (`<SignIn />`, `<UserButton />`, `<OrganizationSwitcher />`) save substantial frontend work. The trade-off (10k MAU free tier and higher per-MAU pricing beyond that) is acceptable at portfolio scale."
 
 ### What we explicitly do NOT use Supabase for
 
@@ -288,45 +290,45 @@ This is worth stating clearly because it surfaces the architectural decision:
 - **Not Supabase Edge Functions** — we use Cloud Run (more flexible, better Python support)
 - **Not Supabase Realtime** — we use SSE from FastAPI (one less vendor to manage)
 
-Supabase earns its keep for one job and one job only: identity. Treating it as a focused auth provider rather than a full-stack platform is the deliberate choice.
+Supabase remains a valid alternative, but it is not in the active stack after the Clerk pivot.
 
 ---
 
 ## Summary table: the complete stack
 
-| Layer | Tool | Free tier | Justification |
-|---|---|---|---|
-| Agent runtime | LangGraph 1.x | Open source | Dominant production framework, 25-30% of JDs |
-| Agent definitions | Pydantic AI | Open source | Type-safe, same team as Pydantic v2 |
-| Type validation | Pydantic v2 | Open source | Spinal cord of the stack |
-| Tool integration | MCP + 5 custom servers | Open source | Fastest-growing protocol, headline artifact |
-| Cross-process protocol | A2A v1.0 | Open source | One endpoint between orchestrator and auditor |
-| LLM observability | Langfuse Cloud Hobby | 50k events/mo | OSS, OTel-native, framework-agnostic |
-| Eval (general) | Promptfoo | Open source | YAML-readable, GitHub Actions native |
-| Eval (RAG) | RAGAS | Open source | RAG-specific metrics |
-| RAG | Custom on pgvector | Open source | One vendor, one query layer |
-| Vector DB | pgvector in Neon | Free | Co-located with primary DB |
-| Backend framework | FastAPI | Open source | Pydantic-native, async, OpenAPI |
-| Frontend | Next.js 15 | Free | The standard for 2026 |
-| Frontend AI | Vercel AI SDK 6 + AI Elements + shadcn | Free | The standard for 2026 |
-| LLM router | LiteLLM | Open source | Multi-provider failover |
-| Default LLM | Gemini 2.5 Flash-Lite | Free quota | Free tier, fast, good enough |
-| Backend errors | Sentry Python SDK | 5k errors/mo | Industry standard |
-| Frontend errors | Sentry browser SDK | Same Sentry account | Auto-correlated with PostHog replay |
-| Product analytics | PostHog Cloud Free | 1M events/mo | Funnels + session replay + feature flags |
-| Web analytics | Vercel Analytics | Free | Free with Hobby |
-| Web vitals | Vercel Speed Insights | Free | Free with Hobby |
-| Backend metrics | Grafana Cloud Free | 10k series | OTel exporter from FastAPI |
-| Uptime + status | Better Stack Free | 10 monitors | Public status page |
-| Frontend hosting | Vercel Hobby | Free | Next.js native |
-| Backend hosting | Cloud Run | 360k vCPU-s/mo | Scale-to-zero |
-| Database | Neon Postgres + pgvector | 0.5GB | Scale-to-zero, branching |
-| File storage | Cloudflare R2 | 10GB | Zero egress fees |
-| Cache | Upstash Redis | 500K cmds/mo | Serverless-friendly |
-| Auth | Supabase Auth | 50k MAU | OAuth flows only |
-| Cron | Vercel Cron | Free | Default drift watcher path |
-| K8s (optional) | Oracle Cloud OKE Always Free | Free, no expiry | Helm chart for production users |
-| Local dev | Docker Compose | Free | One-command setup |
+| Layer                  | Tool                                   | Free tier           | Justification                                 |
+| ---------------------- | -------------------------------------- | ------------------- | --------------------------------------------- |
+| Agent runtime          | LangGraph 1.x                          | Open source         | Dominant production framework, 25-30% of JDs  |
+| Agent definitions      | Pydantic AI                            | Open source         | Type-safe, same team as Pydantic v2           |
+| Type validation        | Pydantic v2                            | Open source         | Spinal cord of the stack                      |
+| Tool integration       | MCP + 5 custom servers                 | Open source         | Fastest-growing protocol, headline artifact   |
+| Cross-process protocol | A2A v1.0                               | Open source         | One endpoint between orchestrator and auditor |
+| LLM observability      | Langfuse Cloud Hobby                   | 50k events/mo       | OSS, OTel-native, framework-agnostic          |
+| Eval (general)         | Promptfoo                              | Open source         | YAML-readable, GitHub Actions native          |
+| Eval (RAG)             | RAGAS                                  | Open source         | RAG-specific metrics                          |
+| RAG                    | Custom on pgvector                     | Open source         | One vendor, one query layer                   |
+| Vector DB              | pgvector in Neon                       | Free                | Co-located with primary DB                    |
+| Backend framework      | FastAPI                                | Open source         | Pydantic-native, async, OpenAPI               |
+| Frontend               | Next.js 15                             | Free                | The standard for 2026                         |
+| Frontend AI            | Vercel AI SDK 6 + AI Elements + shadcn | Free                | The standard for 2026                         |
+| LLM router             | LiteLLM                                | Open source         | Multi-provider failover                       |
+| Default LLM            | Gemini 2.5 Flash-Lite                  | Free quota          | Free tier, fast, good enough                  |
+| Backend errors         | Sentry Python SDK                      | 5k errors/mo        | Industry standard                             |
+| Frontend errors        | Sentry browser SDK                     | Same Sentry account | Auto-correlated with PostHog replay           |
+| Product analytics      | PostHog Cloud Free                     | 1M events/mo        | Funnels + session replay + feature flags      |
+| Web analytics          | Vercel Analytics                       | Free                | Free with Hobby                               |
+| Web vitals             | Vercel Speed Insights                  | Free                | Free with Hobby                               |
+| Backend metrics        | Grafana Cloud Free                     | 10k series          | OTel exporter from FastAPI                    |
+| Uptime + status        | Better Stack Free                      | 10 monitors         | Public status page                            |
+| Frontend hosting       | Vercel Hobby                           | Free                | Next.js native                                |
+| Backend hosting        | Cloud Run                              | 360k vCPU-s/mo      | Scale-to-zero                                 |
+| Database               | Neon Postgres + pgvector               | 0.5GB               | Scale-to-zero, branching                      |
+| File storage           | Cloudflare R2                          | 10GB                | Zero egress fees                              |
+| Cache                  | Upstash Redis                          | 500K cmds/mo        | Serverless-friendly                           |
+| Auth                   | Clerk                                  | 10k MAU             | OAuth flows + pre-built Next.js components    |
+| Cron                   | Vercel Cron                            | Free                | Default drift watcher path                    |
+| K8s (optional)         | Oracle Cloud OKE Always Free           | Free, no expiry     | Helm chart for production users               |
+| Local dev              | Docker Compose                         | Free                | One-command setup                             |
 
 **Total monthly cost: $0.** Realistic worst case if every free tier is breached simultaneously: ~$120/month.
 
@@ -348,9 +350,9 @@ When a reviewer asks "did you consider X," the answer is yes for every X below, 
 - **Pinecone / Qdrant / Weaviate** — yes, evaluated; pgvector wins at our scale
 - **A2UI v0.9** — yes, evaluated; rejected because Beta and zero JD presence
 - **Mandatory K8s** — yes, considered; moved to optional Helm chart, Vercel Cron is default
-- **Clerk** — yes, evaluated; rejected because Supabase has 5x larger free tier, includes MFA, and we don't need Clerk's organization management
+- **Supabase Auth** — yes, evaluated; rejected because we already use Neon for database and R2 for storage, so Supabase adds a vendor for one feature. Clerk's Next.js components save frontend work.
 - **Auth0** — yes, evaluated; rejected because 7.5k MAU free tier is too small and pricing escalates fast
 - **NextAuth.js** — yes, evaluated; rejected because the maintenance burden negates the "free" claim for a 4-week project
-- **Firebase Auth** — yes, evaluated; rejected because Server Components integration is weaker than Supabase
+- **Firebase Auth** — yes, evaluated; rejected because Server Components integration is weaker than Clerk's and locks into Google Cloud ecosystem
 
 Each "no" is a 30-second design-review answer. Together they demonstrate the space was actually evaluated rather than picking the first thing that worked.

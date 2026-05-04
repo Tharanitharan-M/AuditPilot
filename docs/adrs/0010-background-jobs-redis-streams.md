@@ -68,7 +68,7 @@ Cloud Tasks is a strong production answer. It is GCP-native and integrates clean
 
 Inngest is the modern "step-function as code" option. Excellent developer experience. Generous free tier. The reasons against:
 
-1. **Sixth managed service.** AuditPilot already has six providers (Vercel, Cloud Run, Neon, Supabase, R2, Upstash). Adding Inngest is a seventh. Each new vendor is a new failure mode.
+1. **Sixth managed service.** AuditPilot already has six providers (Vercel, Cloud Run, Neon, Clerk, R2, Upstash). Adding Inngest is a seventh. Each new vendor is a new failure mode.
 2. **Vendor lock-in.** Inngest's step-function model is opinionated. Migrating away later means rewriting business logic, not just swapping a transport.
 3. **No artifact value.** Inngest hides queue mechanics. A reviewer reading the code does not see consumer groups, ACKs, or DLQs — they see decorators that hide the implementation.
 

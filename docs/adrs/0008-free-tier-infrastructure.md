@@ -24,7 +24,7 @@ At the same time, the infrastructure must be production-credible — the same se
 | **Vercel Hobby** | Next.js 15 frontend hosting | Unlimited deployments, 100 GB bandwidth/month | Vercel Pro ($20/month) |
 | **Cloud Run (GCP)** | FastAPI + LangGraph backend | 360,000 vCPU-seconds/month, 180,000 GB-seconds | Cloud Run always-on min instances |
 | **Neon Postgres** | Primary database (evidence, checkpoints, actions) | 0.5 GB storage, scale-to-zero | Neon Launch ($19/month) |
-| **Supabase Auth** | User authentication + OAuth | 50,000 MAU | Supabase Pro ($25/month) |
+| **Clerk** | User authentication + OAuth | 10,000 MAU | Clerk Pro ($25/month + usage) |
 | **Cloudflare R2** | Object storage (policy DOCX, questionnaire XLSX) | 10 GB storage, 10M operations/month, zero egress fees | R2 paid ($0.015/GB) |
 | **Upstash Redis** | Rate limiting + session cache | 10,000 commands/day | Upstash Pay-as-you-go |
 
@@ -55,11 +55,11 @@ The 0.5 GB limit covers the static SOC 2 knowledge base (~2 MB), evidence record
 
 **pgvector** is supported natively on Neon (extension `vector` available in Postgres 16). This eliminates the need for a separate vector database (Pinecone, Weaviate, Qdrant) and the associated cost and complexity.
 
-### Supabase Auth for authentication
+### Clerk for authentication
 
-Supabase Auth handles email/password and GitHub OAuth out of the box with no custom server code. The 50,000 MAU free tier is far above what a portfolio project will see. The JWT tokens issued by Supabase are verifiable in FastAPI via the Supabase Python client's JWT verification helper. No custom session management code is required.
+Clerk handles email/password and GitHub OAuth out of the box with no custom server code. The 10,000 MAU free tier is sufficient for a portfolio project. The JWT tokens issued by Clerk are verifiable in FastAPI using Clerk's JWKS-backed verification flow. No custom session-management framework is required.
 
-The Supabase database (separate from Neon) is not used for application data — only the Auth service is used. This avoids vendor lock-in on the data layer while still getting the Auth convenience.
+Neon remains the only application database and Cloudflare R2 remains the object store. Clerk is used only for identity, which keeps responsibilities clear while avoiding a broader Supabase dependency for a single feature.
 
 ### Cloudflare R2 for object storage
 
@@ -100,7 +100,7 @@ The 10,000 commands/day free tier is generous for a portfolio project.
 | **Fly.io** | Excellent for containerized apps; generous free tier. Rejected because Neon is specifically optimized for Postgres + pgvector with branching, which Fly.io's Postgres offering (Fly Postgres) does not match. Fly.io is the right answer for teams that want one platform; we need Neon for database branching. |
 | **Railway** | Similar to Fly.io. Good free tier. Rejected for the same reason: Neon branching is a development productivity feature that Railway's managed Postgres does not provide. |
 | **Render** | Free tier includes Postgres but with a 90-day data expiration on the free plan, which would destroy evidence data. Neon has no data expiration on the free tier. |
-| **Supabase for the full database (not just Auth)** | Supabase includes Postgres but the free tier pauses projects after 1 week of inactivity. An unpaused project requires a paid plan. Using Neon for the database avoids the pause behavior while still using Supabase for the Auth service it excels at. |
+| **Supabase Auth** | Supabase Auth is capable and has a larger free tier, but we do not use Supabase for database or storage. For this architecture, Clerk's pre-built Next.js authentication components remove meaningful frontend implementation work while preserving the vendor-minimal stack around Neon + R2. |
 | **Pinecone / Weaviate / Qdrant for vector search** | Adding a separate vector database adds a seventh piece of infrastructure and a second managed service for data storage. Neon + pgvector handles both relational and vector storage in one service. The hybrid BM25 + pgvector search is ~200 lines of Python; no framework abstraction is needed. |
 
 ---

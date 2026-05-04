@@ -1,7 +1,7 @@
 # ADR-0005: Five Published MCP Servers
 
 **Date:** 2026-05-01
-**Status:** Accepted (control catalog choice updated by ADR-0013, 2026-05-02)
+**Status:** Accepted (control catalog choice updated by ADR-0013, 2026-05-02; auth provider decision superseded to Clerk, 2026-05-04)
 **Deciders:** AuditPilot maintainers
 **Refs:** SRS CON-008; PRD §6.1; PLAN.md Sprints 1, 5, 7; ADR-0013; CLAUDE.md stack pins
 
@@ -104,4 +104,14 @@ All five servers must satisfy:
 | **Fewer than five servers** | Three servers was considered. Rejected because `policy-template-mcp` and `drift-watcher-mcp` have distinct data access patterns (template rendering vs. time-series diffing) that belong in separate packages. Five is the honest count; forcing three would produce one overloaded server. |
 
 ---
+
+## Supersession Note (2026-05-04): Auth provider pivot to Clerk
+
+The earlier documentation baseline selected Supabase Auth as the authentication provider. That decision is superseded.
+
+**New decision:** Use Clerk for authentication (email/password plus GitHub OAuth) and session management across the Next.js 15 frontend and FastAPI backend.
+
+### Rationale
+
+We are not using Supabase for the database (Neon Postgres) or object storage (Cloudflare R2), so retaining standalone Supabase Auth introduces a vendor for one feature. Clerk reduces frontend implementation cost by providing production-ready auth primitives (`<SignIn />`, `<UserButton />`, `<OrganizationSwitcher />`) that match the Next.js 15 stack directly. Clerk's free tier (10K MAU) is sufficient for portfolio-scale usage. The trade-off is accepted: Clerk's smaller free tier and higher per-MAU pricing after 10K vs Supabase's 50K free tier, which is not material at current scale.
 

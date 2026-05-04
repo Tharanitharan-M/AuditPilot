@@ -62,22 +62,14 @@ class Settings(BaseSettings):
     )
     redis_token: SecretStr | None = None  # Upstash REST token; unused in local dev
 
-    # ── Supabase Auth (ADR-0008) ─────────────────────────────────────────────
-    supabase_url: AnyUrl = Field(
+    # ── Clerk Auth (ADR-0008) ─────────────────────────────────────────────────
+    clerk_secret_key: SecretStr = Field(
         ...,  # REQUIRED
-        description="Supabase project URL.",
+        description="Clerk secret key for backend JWT verification. NEVER expose to browser.",
     )
-    supabase_anon_key: SecretStr = Field(
+    clerk_publishable_key: str = Field(
         ...,  # REQUIRED
-        description="Supabase anon (public) key. Safe to expose to browser.",
-    )
-    supabase_service_role_key: SecretStr = Field(
-        ...,  # REQUIRED
-        description="Supabase service-role key. NEVER expose to browser.",
-    )
-    supabase_jwt_secret: SecretStr = Field(
-        ...,  # REQUIRED
-        description="JWT secret for verifying Supabase tokens without a round-trip.",
+        description="Clerk publishable key. Safe to expose to browser via NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.",
     )
 
     # ── Cloudflare R2 (ADR-0008) — optional in development ───────────────────
@@ -126,7 +118,7 @@ class Settings(BaseSettings):
     cron_secret: SecretStr | None = None        # required in staging/production
 
     # ── Demo account (ADR-0012, Sprint 11) ───────────────────────────────────
-    demo_user_id: str | None = None             # UUID of seeded demo Supabase user
+    demo_user_id: str | None = None             # Clerk user_id of seeded demo user
 
     # ── Derived helpers ───────────────────────────────────────────────────────
     @property

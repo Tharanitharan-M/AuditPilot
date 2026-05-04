@@ -11,13 +11,13 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";    -- uuid_generate_v4() helper
 
 -- ── Schema ownership note ──────────────────────────────────────────────────────
 -- Row Level Security (RLS) policies on all multi-tenant tables will reference
--- auth.uid() from Supabase Auth. The Supabase Auth schema ships with the
--- Supabase project and does not need to be created here.
+-- the Clerk user_id stored in the users table. The application sets
+-- current_setting('app.current_user_id') from the verified Clerk JWT claim.
 --
 -- Pattern used throughout:
 --   CREATE POLICY <name> ON <table>
---     USING ((SELECT auth.uid()) = user_id);
--- Wrapping auth.uid() in SELECT enables query-plan caching (postgres-patterns skill).
+--     USING (user_id = current_setting('app.current_user_id')::uuid);
+-- Using current_setting enables query-plan caching (postgres-patterns skill).
 
 -- ── Placeholder: tables added in Sprint 2+ ────────────────────────────────────
 -- Sprint 2: users, scan_runs, actions, checkpoints (LangGraph PostgresSaver)

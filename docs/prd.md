@@ -143,7 +143,7 @@ Features are grouped by Must (ship with v1), Should (ship if time allows in v1),
 | **Adversarial mock readiness challenge** | AdversarialAuditor agent takes the stance of a skeptical external reviewer, challenges the orchestrator's control claims, produces written objections, and surfaces gaps the orchestrator missed. Results flow into the gap report. User triggers this explicitly — it never runs automatically. | US-019, US-020 |
 | **Langfuse trace observability** | Every orchestrator invocation emits OTel spans to Langfuse. Users can inspect the full reasoning trace, tool calls, and token costs for any session. | US-008 |
 | **Promptfoo eval suite with judge validation** | 100-case gold set (hand-labeled). CI gate on control-mapping accuracy. Judge validation script outputs TPR, TNR, and Cohen's kappa. Results published to `docs/evals/`. | US-009 |
-| **Supabase Auth (email + GitHub OAuth)** | Users sign up, log in, and connect GitHub via Supabase Auth. Sessions persist via HTTP-only cookies. No custom auth code. | US-001 |
+| **Clerk auth (email + GitHub OAuth)** | Users sign up, log in, and connect GitHub via Clerk. Sessions persist via HTTP-only cookies, with pre-built Next.js auth UI components. | US-001 |
 | **SSE streaming chat interface** | Next.js 15 + Vercel AI SDK 6 `useChat` hook streams orchestrator messages, tool call cards, and control posture updates in real time. | US-005, US-010 |
 
 ### 6.2 Should — ship in v1 if Sprint velocity allows
