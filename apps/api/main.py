@@ -22,6 +22,9 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from posthog import Posthog
 from pydantic import BaseModel, ConfigDict, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from apps.api.agents.prompts import PromptLoader
 from apps.api.checkpointer import memory_checkpointer
@@ -253,12 +256,29 @@ def get_job_queue() -> JobQueue:
     return _job_queue
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Rate limiting (Sprint 3 day-0 chunk 3.0a)
+# ──────────────────────────────────────────────────────────────────────────────
+# OWASP LLM10 — Unbounded Consumption. /chat is unauthenticated until Sprint 3
+# chunk 3.5 wires Clerk JWT verification, so without this limiter any caller
+# could drive unbounded Gemini API spend. Per-IP keying via
+# ``get_remote_address`` is the right surrogate for "per-user" until auth lands.
+# Limit string read from env (default 10/minute) so tests can override to a
+# tight budget.
+def _chat_rate_limit() -> str:
+    return os.environ.get("CHAT_RATE_LIMIT", "10/minute")
+
+
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+
 app = FastAPI(
     title="AuditPilot API",
     version="0.1.0",
-    description="SOC 2 readiness reference architecture — orchestration backend",
+    description="Readiness reference architecture — orchestration backend",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.middleware("http")
@@ -438,6 +458,7 @@ async def _chat_stream_generator(
 
 
 @app.post("/chat")
+@limiter.limit(_chat_rate_limit)
 async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
     """Stream orchestrator output as AI SDK 6 UIMessage SSE.
 
@@ -448,7 +469,10 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
     Body: ChatRequest JSON, matching AI SDK 6's `useChat` POST shape.
 
     NOTE: Sprint 2 leaves this endpoint unauthenticated. Clerk JWT verification
-    wires in at Sprint 3 chunk 3.5 via a FastAPI dependency.
+    wires in at Sprint 3 chunk 3.5 via a FastAPI dependency. Until then, the
+    ``@limiter.limit(_chat_rate_limit)`` decorator above caps requests at
+    ``CHAT_RATE_LIMIT`` (default ``10/minute``) per remote IP — Sprint 3 day-0
+    chunk 3.0a, OWASP LLM10 mitigation.
     """
 
     thread_id = req.thread_id or f"thread_{uuid.uuid4().hex}"

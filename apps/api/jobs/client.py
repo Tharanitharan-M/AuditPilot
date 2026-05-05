@@ -79,11 +79,24 @@ class UpstashRestRedis:
 
     async def _exec(self, *command: Any) -> Any:
         response = await self._http.post(self._url, json=[str(x) for x in command])
-        response.raise_for_status()
-        payload = response.json()
-        if "error" in payload:
+        # Sprint 3 day-1 chunk 3.0f — inspect the JSON body BEFORE
+        # ``raise_for_status``. Upstash REST returns HTTP 400 with body
+        # ``{"error": "BUSYGROUP Consumer Group name already exists"}`` for
+        # benign "already exists" cases (e.g. XGROUP CREATE on an existing
+        # group, which fires on every uvicorn restart after the first). If
+        # we let ``raise_for_status`` fire first those become
+        # ``HTTPStatusError`` and the BUSYGROUP swallow in ``xgroup_create``
+        # never executes — the worker silently fails to start. Reading the
+        # body first preserves the redis-py-shaped ``RuntimeError("Upstash
+        # error: ...")`` contract that callers depend on.
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if isinstance(payload, dict) and "error" in payload:
             raise RuntimeError(f"Upstash error: {payload['error']}")
-        return payload.get("result")
+        response.raise_for_status()
+        return payload.get("result") if isinstance(payload, dict) else None
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -211,7 +224,9 @@ def make_redis_client(settings: Settings) -> RedisLike:
     * ``http://`` / ``https://`` → :class:`UpstashRestRedis`
     """
 
-    url = settings.redis_url
+    # `redis_url` is a SecretStr (Sprint 3 day-0 chunk 3.0c). Unwrap once
+    # at the very last moment — never log or stringify the raw URL.
+    url = settings.redis_url.get_secret_value()
     if url.startswith(("redis://", "rediss://", "unix://")):
         import redis.asyncio as redis_asyncio
 
@@ -224,4 +239,7 @@ def make_redis_client(settings: Settings) -> RedisLike:
             )
         token = secret.get_secret_value() if hasattr(secret, "get_secret_value") else str(secret)
         return UpstashRestRedis(url, token)
-    raise ValueError(f"Unsupported REDIS_URL scheme: {url!r}")
+    # IMPORTANT: do not include `url` in the error message — it embeds the
+    # password. Mention the scheme only.
+    scheme = url.split("://", 1)[0] if "://" in url else "<no-scheme>"
+    raise ValueError(f"Unsupported REDIS_URL scheme: {scheme!r}")

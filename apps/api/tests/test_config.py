@@ -93,8 +93,10 @@ def test_valid_env_constructs_settings(blanked_env, tmp_path):
         settings = Settings(_env_file=str(empty_env_file))
 
     assert settings.environment == "development"
-    assert settings.database_url == _VALID_ENV["DATABASE_URL"]
-    assert settings.redis_url == _VALID_ENV["REDIS_URL"]
+    # database_url and redis_url are SecretStr (Sprint 3 day-0 chunk 3.0c) —
+    # callers must explicitly unwrap.
+    assert settings.database_url.get_secret_value() == _VALID_ENV["DATABASE_URL"]
+    assert settings.redis_url.get_secret_value() == _VALID_ENV["REDIS_URL"]
     assert settings.gemini_api_key.get_secret_value() == "fake-gemini-key"
     assert settings.is_production is False
 
@@ -144,4 +146,42 @@ def test_effective_direct_url_falls_back_to_database_url(blanked_env, tmp_path):
     with patch.dict(os.environ, _VALID_ENV, clear=False):
         settings = Settings(_env_file=str(empty_env_file))
 
-    assert settings.effective_direct_url == settings.database_url
+    assert (
+        settings.effective_direct_url.get_secret_value()
+        == settings.database_url.get_secret_value()
+    )
+
+
+def test_repr_redacts_database_and_redis_url_passwords(blanked_env, tmp_path):
+    """Sprint 3 day-0 chunk 3.0c — verify SecretStr typing actually redacts.
+
+    Pydantic redacts ``SecretStr`` in ``repr()`` and ``model_dump()``.
+    This test pins the contract so a future refactor that changes
+    ``database_url`` / ``redis_url`` back to plain ``str`` would fail loudly.
+    """
+
+    empty_env_file = tmp_path / ".env"
+    empty_env_file.write_text("")
+
+    leaky_env = dict(_VALID_ENV)
+    leaky_env["DATABASE_URL"] = "postgres://user:supersecretpassword@host/db"
+    leaky_env["REDIS_URL"] = "rediss://default:redispassword123@host:6379"
+
+    with patch.dict(os.environ, leaky_env, clear=False):
+        settings = Settings(_env_file=str(empty_env_file))
+
+    rendered = repr(settings)
+    assert "supersecretpassword" not in rendered, (
+        "database_url password leaked into repr(Settings)"
+    )
+    assert "redispassword123" not in rendered, (
+        "redis_url password leaked into repr(Settings)"
+    )
+
+    dumped = str(settings.model_dump())
+    assert "supersecretpassword" not in dumped, (
+        "database_url password leaked into model_dump()"
+    )
+    assert "redispassword123" not in dumped, (
+        "redis_url password leaked into model_dump()"
+    )

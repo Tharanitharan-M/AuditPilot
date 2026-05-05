@@ -23,17 +23,25 @@ system-design.md 3.2, 6.4.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from compliance_kb_mcp.schemas import Control
 from compliance_kb_mcp.tools import lookup_control as _kb_lookup_control
-from langchain_core.messages import AIMessage, HumanMessage
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
 
-from apps.api.state import AuditPilotState, ControlAssessment
+# Sprint 3 day-0 chunk 3.0b — OWASP LLM06 (Excessive Agency) defence-in-depth.
+# Validate ``control_id`` BEFORE handing it to the downstream MCP tool. NIST
+# 800-53 Rev 5 control identifiers are {family}-{number} with an optional
+# {enhancement} in parentheses, e.g. ``AC-1``, ``AC-2(1)``, ``SC-7(3)``. The
+# regex rejects path-traversal (``../../etc/passwd``), SQL injection
+# (``'; DROP TABLE…``), prompt-injected free text, and any other shape the
+# LLM might be tricked into producing. Reject early and return a typed miss
+# without burning a downstream call.
+_CONTROL_ID_PATTERN = re.compile(r"^[A-Z]{1,3}-[0-9]{1,3}(?:\([0-9]{1,2}\))?$")
 
 
 class LookupControlResult(BaseModel):
@@ -116,6 +124,14 @@ def build_orchestrator_agent(
 
         with tracer.start_as_current_span("orchestrator.lookup_control") as span:
             span.set_attribute("control.id", control_id)
+            # Sprint 3 day-0 chunk 3.0b — reject malformed/hostile ids before
+            # the downstream call. The MCP tool then never sees path traversal,
+            # SQL injection, or prompt-injected free text masquerading as a
+            # control identifier.
+            if not _CONTROL_ID_PATTERN.match(control_id):
+                span.set_attribute("control.found", False)
+                span.set_attribute("control.invalid_format", True)
+                return LookupControlResult(found=False, control_id=control_id)
             control = _kb_lookup_control(control_id)
             if control is None:
                 span.set_attribute("control.found", False)
@@ -136,51 +152,13 @@ def build_orchestrator_agent(
     return agent
 
 
-async def run_orchestrator(
-    state: AuditPilotState,
-    user_input: str,
-    *,
-    model: Model | str = "test",
-    deps: OrchestratorDeps | None = None,
-) -> AuditPilotState:
-    """Invoke the orchestrator with `user_input` and merge the result into `state`.
-
-    This is the single graph-node entrypoint for Sprint 2. Downstream sprints
-    will split this into dedicated LangGraph nodes (`evidence_collection`,
-    `control_mapping`, `adversarial_challenge`, `hitl_gate`).
-    """
-
-    deps = deps or OrchestratorDeps(
-        user_id=state.user_id,
-        scan_run_id=state.scan_run_id,
-    )
-    agent = build_orchestrator_agent(model)
-
-    with tracer.start_as_current_span("orchestrator.run") as span:
-        span.set_attribute("orchestrator.user_id", deps.user_id or "anonymous")
-        span.set_attribute("orchestrator.scan_run_id", deps.scan_run_id or "none")
-        result = await agent.run(user_input, deps=deps)
-
-    state.messages.append(HumanMessage(content=user_input))
-    state.messages.append(AIMessage(content=result.output))
-
-    for control in deps.looked_up_controls:
-        for tsc_id in control.soc2_tsc_mappings:
-            existing = state.control_map.get(tsc_id)
-            nist_refs = list(existing.nist_800_53_refs) if existing else []
-            if control.id not in nist_refs:
-                nist_refs.append(control.id)
-            state.control_map[tsc_id] = ControlAssessment(
-                tsc_id=tsc_id,
-                status=existing.status if existing else "unknown",
-                confidence=existing.confidence if existing else 0.0,
-                nist_800_53_refs=nist_refs,
-                evidence_ids=list(existing.evidence_ids) if existing else [],
-                rationale=existing.rationale if existing else None,
-            )
-
-    state.current_step = "orchestrator_stub_complete"
-    return state
+# NOTE: ``run_orchestrator()`` was deleted in Sprint 3 day-0 chunk 3.0d.
+# It was a parallel state writer that mutated ``AuditPilotState`` in place
+# (``state.messages.append(...)``, ``state.control_map[...] = ...``), bypassing
+# the LangGraph graph and silently violating the single-writer invariant from
+# ADR-0002. The canonical write path is ``orchestrator_node`` in
+# ``apps/api/graph.py``, which returns deltas. Tests invoke
+# ``build_graph(memory_checkpointer()).ainvoke({...})`` directly.
 
 
 __all__ = [
@@ -188,5 +166,4 @@ __all__ = [
     "OrchestratorDeps",
     "SYSTEM_PROMPT",
     "build_orchestrator_agent",
-    "run_orchestrator",
 ]

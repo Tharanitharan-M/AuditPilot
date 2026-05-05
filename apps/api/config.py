@@ -46,11 +46,15 @@ class Settings(BaseSettings):
     git_sha: str = "local"
 
     # ── Database — Neon Postgres 16 + pgvector (ADR-0008) ────────────────────
-    database_url: str = Field(
+    # SecretStr because the URL embeds user:password — see Sprint 3 day-0
+    # chunk 3.0c. Pydantic redacts SecretStr in repr() / model_dump() so the
+    # password cannot leak through ValidationError messages, debug prints,
+    # or PostHog `capture_exception` payloads.
+    database_url: SecretStr = Field(
         ...,  # REQUIRED
         description="Postgres connection string. Format: postgres://USER:PASS@HOST/DB",
     )
-    direct_url: str | None = Field(
+    direct_url: SecretStr | None = Field(
         default=None,
         description="Direct (non-pooled) URL for Drizzle migrations. Defaults to database_url.",
     )
@@ -59,7 +63,8 @@ class Settings(BaseSettings):
     # redis_url is the TCP connection string used by redis-py (`apps/api/jobs/`).
     # Local Docker:  redis://redis:6379/0
     # Upstash TCP:   rediss://default:<password>@<host>:6379
-    redis_url: str = Field(
+    # SecretStr for the same reason as database_url above.
+    redis_url: SecretStr = Field(
         ...,  # REQUIRED
         description="Redis TCP connection string. Local: redis://localhost:6379/0",
     )
@@ -157,6 +162,11 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @property
-    def effective_direct_url(self) -> str:
-        """Return the direct (non-pooled) DB URL, falling back to database_url."""
+    def effective_direct_url(self) -> SecretStr:
+        """Return the direct (non-pooled) DB URL, falling back to database_url.
+
+        Returns ``SecretStr`` for the same reason ``database_url`` is a
+        ``SecretStr`` — callers must explicitly call ``.get_secret_value()``
+        to unwrap, which keeps the unwrap surface small and greppable.
+        """
         return self.direct_url or self.database_url
