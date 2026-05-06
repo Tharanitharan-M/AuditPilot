@@ -150,15 +150,13 @@ class AuditPilotState(BaseModel):
     # for parity with the DB column).
     repo_include_list: list[str] = Field(default_factory=list)
 
-    # Sprint 5 chunk 5.3-5.7: maps provider_repo_id → "owner/repo" full name.
-    # Populated by the /chat handler from connector_scoped_repos before graph
-    # invocation so the GitHub evidence collector can call the REST API without
-    # an extra DB round-trip inside the graph node. NOT sensitive data (just
-    # repo names), so safe to checkpoint in the LangGraph state.
-    repo_full_names: dict[str, str] = Field(
-        default_factory=dict,
-        description="provider_repo_id → 'owner/repo' full name. Set at /chat call time.",
-    )
+    # Sprint 5 chunk 5.19 — ``repo_full_names`` was removed from state.
+    # The mapping is now captured exclusively in the GitHub evidence
+    # collector's closure (see ``make_github_evidence_collector``) so it
+    # never enters the LangGraph checkpoint store. Repo names are not
+    # secrets, but they are user-controlled external strings and there
+    # is no graph node that reads them — keeping them out of state
+    # shrinks every checkpoint row and removes a write surface.
 
 
 # Intents that require a non-empty connector scope before any tool calls.

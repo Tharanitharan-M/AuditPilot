@@ -347,41 +347,52 @@ async def write_cached_assessments(
         span.set_attribute("cache.assessment_count", len(assessments))
         span.set_attribute("cache.hash_count", len(content_hashes))
 
+        # Sprint 5 chunk 5.17 — single executemany pipelines all
+        # (tsc_id × content_hash) rows in one DB round-trip instead of
+        # the prior nested-loop ``conn.execute`` per pair. For 10 TSC
+        # clauses × 50 content_hashes this collapsed 500 round-trips
+        # down to one.
+        rows: list[tuple[Any, ...]] = [
+            (
+                uid,
+                h,
+                tsc_id,
+                prompt_version,
+                kb_version,
+                assessment.status,
+                assessment.confidence,
+                assessment.nist_800_53_refs,
+                assessment.evidence_ids,
+                assessment.rationale,
+            )
+            for tsc_id, assessment in assessments.items()
+            for h in content_hashes
+        ]
+
         async with pool.connection() as conn:
             await conn.execute(
                 "SELECT set_config('app.current_user_id', %s, true)",
                 (uid,),
             )
-            for tsc_id, assessment in assessments.items():
-                for h in content_hashes:
-                    await conn.execute(
-                        """
-                        INSERT INTO control_map_cache
-                            (user_id, content_hash, control_id, prompt_version, kb_version,
-                             status, confidence, nist_800_53_refs, evidence_ids, rationale)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::text[], %s::text[], %s)
-                        ON CONFLICT (user_id, content_hash, control_id, prompt_version, kb_version)
-                        DO UPDATE SET
-                            status           = EXCLUDED.status,
-                            confidence       = EXCLUDED.confidence,
-                            nist_800_53_refs = EXCLUDED.nist_800_53_refs,
-                            evidence_ids     = EXCLUDED.evidence_ids,
-                            rationale        = EXCLUDED.rationale,
-                            computed_at      = now()
-                        """,
-                        (
-                            uid,
-                            h,
-                            tsc_id,
-                            prompt_version,
-                            kb_version,
-                            assessment.status,
-                            assessment.confidence,
-                            assessment.nist_800_53_refs,
-                            assessment.evidence_ids,
-                            assessment.rationale,
-                        ),
-                    )
+            async with conn.cursor() as cur:
+                await cur.executemany(
+                    """
+                    INSERT INTO control_map_cache
+                        (user_id, content_hash, control_id, prompt_version, kb_version,
+                         status, confidence, nist_800_53_refs, evidence_ids, rationale)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s::text[], %s::text[], %s)
+                    ON CONFLICT (user_id, content_hash, control_id, prompt_version, kb_version)
+                    DO UPDATE SET
+                        status           = EXCLUDED.status,
+                        confidence       = EXCLUDED.confidence,
+                        nist_800_53_refs = EXCLUDED.nist_800_53_refs,
+                        evidence_ids     = EXCLUDED.evidence_ids,
+                        rationale        = EXCLUDED.rationale,
+                        computed_at      = now()
+                    """,
+                    rows,
+                )
+        span.set_attribute("cache.row_count", len(rows))
 
 
 __all__ = [

@@ -244,6 +244,12 @@ class _FakeConn:
     async def commit(self):
         return None
 
+    # Sprint 3.5.6 — _set_rls_user calls conn.execute() directly (matches the
+    # psycopg3 AsyncConnection surface). The fake just no-ops the call so the
+    # SELECT set_config('app.current_user_id', %s, true) statement passes.
+    async def execute(self, query: str, params: tuple | None = None):
+        return _FakeCursor(self._store)
+
 
 class _FakePool:
     def __init__(self) -> None:

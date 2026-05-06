@@ -51,10 +51,12 @@ from typing import Final
 
 from compliance_kb_mcp.schemas import Control
 from compliance_kb_mcp.tools import lookup_by_soc2_tsc, search_controls
+from opentelemetry import trace
 
 from apps.api.state import ControlAssessment, Evidence
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 # Top-k controls to retrieve per evidence row. 5 is a deliberate trade:
@@ -105,60 +107,70 @@ def map_evidence_to_controls(
     Pure function — does no I/O beyond the ``compliance-kb-mcp`` lookups
     (which are pure in-process Python over the static catalog). Returns
     a fresh dict; the caller (graph node) merges into ``state.control_map``.
+
+    Sprint 4 chunk 4.13 — opens an OTel span around the BM25 fan-out so
+    Sprint 10 eval runs can attribute latency to this keystone function
+    instead of lumping it under ``graph.map_controls``. The span runs in
+    the worker thread of ``asyncio.to_thread`` and propagates context
+    across the boundary because OTel's ContextVar is thread-aware.
     """
 
     if not evidence_list:
         return {}
 
-    accumulator: dict[str, _Accumulator] = {}
+    with tracer.start_as_current_span("control_mapping.map_evidence_to_controls") as span:
+        span.set_attribute("evidence.count", len(evidence_list))
 
-    for evidence in evidence_list:
-        # 1. Curated seed (always-on safety net).
-        for tsc_id in _SOURCE_TSC_SEEDS.get(evidence.source_type, ()):
-            controls = lookup_by_soc2_tsc(tsc_id)
-            for control in controls:
-                _accumulate(
-                    accumulator,
-                    tsc_id=tsc_id,
-                    control=control,
-                    evidence=evidence,
-                    confidence=_SEED_CONFIDENCE,
-                    rationale=f"Seeded from source_type={evidence.source_type!r}.",
-                )
+        accumulator: dict[str, _Accumulator] = {}
 
-        # 2. BM25 retrieval over the natural-language evidence text.
-        query = _evidence_to_query(evidence)
-        if query.strip():
-            try:
-                candidates = search_controls(query, k=_BM25_K)
-            except Exception as exc:  # noqa: BLE001
-                # Defensive — search_controls is a pure function over
-                # an in-process catalog so this should not fire, but
-                # we never want a single bad query to abort the whole
-                # mapping run.
-                logger.warning(
-                    "control_mapping.search_failed evidence_id=%s err=%r",
-                    evidence.id,
-                    exc,
-                )
-                candidates = []
-            for rank, control in enumerate(candidates):
-                bm25_confidence = _bm25_rank_to_confidence(rank, len(candidates))
-                for tsc_id in control.soc2_tsc_mappings:
+        for evidence in evidence_list:
+            # 1. Curated seed (always-on safety net).
+            for tsc_id in _SOURCE_TSC_SEEDS.get(evidence.source_type, ()):
+                controls = lookup_by_soc2_tsc(tsc_id)
+                for control in controls:
                     _accumulate(
                         accumulator,
                         tsc_id=tsc_id,
                         control=control,
                         evidence=evidence,
-                        confidence=bm25_confidence,
-                        rationale=(
-                            f"BM25 rank {rank + 1}/{len(candidates)} on "
-                            f"query '{query[:60]}'."
-                        ),
+                        confidence=_SEED_CONFIDENCE,
+                        rationale=f"Seeded from source_type={evidence.source_type!r}.",
                     )
 
-    # Materialise the accumulators into ControlAssessment instances.
-    return {tsc_id: acc.to_assessment() for tsc_id, acc in accumulator.items()}
+            # 2. BM25 retrieval over the natural-language evidence text.
+            query = _evidence_to_query(evidence)
+            if query.strip():
+                try:
+                    candidates = search_controls(query, k=_BM25_K)
+                except Exception as exc:  # noqa: BLE001
+                    # Defensive — search_controls is a pure function over
+                    # an in-process catalog so this should not fire, but
+                    # we never want a single bad query to abort the whole
+                    # mapping run.
+                    logger.warning(
+                        "control_mapping.search_failed evidence_id=%s err=%r",
+                        evidence.id,
+                        exc,
+                    )
+                    candidates = []
+                for rank, control in enumerate(candidates):
+                    bm25_confidence = _bm25_rank_to_confidence(rank, len(candidates))
+                    for tsc_id in control.soc2_tsc_mappings:
+                        _accumulate(
+                            accumulator,
+                            tsc_id=tsc_id,
+                            control=control,
+                            evidence=evidence,
+                            confidence=bm25_confidence,
+                            rationale=(
+                                f"BM25 rank {rank + 1}/{len(candidates)} on "
+                                f"query '{query[:60]}'."
+                            ),
+                        )
+
+        # Materialise the accumulators into ControlAssessment instances.
+        span.set_attribute("control_map.tsc_count", len(accumulator))
+        return {tsc_id: acc.to_assessment() for tsc_id, acc in accumulator.items()}
 
 
 def _evidence_to_query(evidence: Evidence) -> str:

@@ -294,6 +294,7 @@ async def _list_scoped_repos(
     H-3. The caller treats >500 rows as a degraded read.
     """
     async with pool.connection() as conn:
+        await _set_rls_user(conn, user_id)
         async with conn.cursor() as cur:
             await cur.execute(
                 "SELECT provider_repo_id, full_name, private "
@@ -323,10 +324,14 @@ async def _replace_scoped_repos(
     """Replace the user's scoped-repo selection in one transaction.
 
     Pattern:
-      1) DELETE rows no longer in the desired selection.
-      2) INSERT rows not yet persisted, ON CONFLICT (user_id, connector_id,
+      1) Sprint 3.5.6: bind RLS user_id on this connection.
+      2) Sprint 3.5.9: SELECT … FOR UPDATE the existing rows for
+         (user_id, connector_id) so two concurrent PATCHes serialise
+         instead of racing on the DELETE/INSERT.
+      3) DELETE rows no longer in the desired selection.
+      4) INSERT rows not yet persisted, ON CONFLICT (user_id, connector_id,
          provider_repo_id) DO NOTHING.
-      3) Re-read inside the SAME transaction so the response body
+      5) Re-read inside the SAME transaction so the response body
          matches what we just committed (closes the TOCTOU window
          from python-reviewer F5 / database-reviewer H-2).
 
@@ -335,8 +340,23 @@ async def _replace_scoped_repos(
     """
     desired_ids = {r.provider_repo_id for r in repos}
     async with pool.connection() as conn:
+        await _set_rls_user(conn, user_id)
         async with conn.transaction():
             async with conn.cursor() as cur:
+                # Sprint 3.5.9 — serialise concurrent PATCHes for the same
+                # (user_id, connector_id). Without this, two near-simultaneous
+                # PATCHes can interleave their DELETE/INSERT and produce a
+                # mid-state response that does not match either request.
+                # FOR UPDATE locks the matching rows for the duration of
+                # the transaction; SKIP LOCKED is intentionally NOT used —
+                # we want the second request to wait, not silently skip rows.
+                await cur.execute(
+                    "SELECT 1 FROM connector_scoped_repos "
+                    "WHERE user_id = %s AND connector_id = %s "
+                    "FOR UPDATE",
+                    (user_id, connector_id),
+                )
+
                 if desired_ids:
                     await cur.execute(
                         "DELETE FROM connector_scoped_repos "

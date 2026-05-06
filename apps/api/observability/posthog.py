@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import atexit
 import logging
+import re
 from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
@@ -34,6 +35,63 @@ from apps.api.config import Settings
 logger = logging.getLogger(__name__)
 
 _SERVER_DISTINCT_ID = "server"
+
+# Sprint 4 chunk 4.17 — connection-string redaction.
+#
+# When psycopg / asyncpg / redis-py / httpx raise an error, the exception
+# repr commonly embeds the full connection URI (DSN) — including the
+# password — into ``str(exc)``. PostHog's ``$exception`` event captures
+# ``exception_message`` verbatim, so without scrubbing we leak credentials
+# into the operator inbox the moment a DB connection flaps.
+#
+# The redactor matches three shapes:
+#   1. URI userinfo:    ``scheme://user:password@host`` → ``scheme://user:***@host``
+#   2. KV password:     ``password=secret`` / ``passwd=...`` → ``password=***``
+#   3. Bearer headers:  ``Bearer xxxxx`` → ``Bearer ***``
+#
+# Patterns are intentionally narrow — over-redaction would mask useful
+# debugging info; the goal is "scrub the credential surface, leave the
+# error context."
+_REDACT_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        # URI with userinfo: scheme://user:password@host
+        re.compile(r"(?i)([a-z][a-z0-9+.\-]*://)([^:/\s@]+):([^@\s]+)@"),
+        r"\1\2:***@",
+    ),
+    (
+        # password=... / passwd=... (case-insensitive, common DSN style)
+        re.compile(r"(?i)\b(password|passwd|pwd)\s*=\s*[^&\s\"';]+"),
+        r"\1=***",
+    ),
+    (
+        # Bearer / api-key-style tokens
+        re.compile(r"(?i)\b(bearer)\s+[A-Za-z0-9._\-]+"),
+        r"\1 ***",
+    ),
+)
+
+
+def _redact(value: Any) -> Any:
+    """Return ``value`` with credential-shaped substrings replaced.
+
+    Scalar strings are scrubbed via the patterns above; dicts and lists
+    are recursed; everything else is returned unchanged. The redactor
+    never raises — a regex hiccup must not abort error capture.
+    """
+
+    try:
+        if isinstance(value, str):
+            out = value
+            for pattern, replacement in _REDACT_PATTERNS:
+                out = pattern.sub(replacement, out)
+            return out
+        if isinstance(value, dict):
+            return {k: _redact(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [_redact(v) for v in value]
+        return value
+    except Exception:  # noqa: BLE001 — never let scrubbing break capture
+        return "<redaction-failed>"
 
 
 def init_posthog(settings: Settings) -> Posthog | None:
@@ -78,15 +136,20 @@ def capture_event(
     properties: dict[str, Any] | None = None,
     distinct_id: str | None = None,
 ) -> None:
-    """Fire a server-side event; silent no-op if PostHog is not configured."""
+    """Fire a server-side event; silent no-op if PostHog is not configured.
+
+    Properties pass through ``_redact`` so connection strings, passwords,
+    and Bearer tokens are scrubbed before they hit PostHog (Sprint 4.17).
+    """
 
     if client is None:
         return
+    safe_props = _redact(properties or {})
     with suppress(Exception):
         client.capture(
             distinct_id=distinct_id or _SERVER_DISTINCT_ID,
             event=event,
-            properties=properties or {},
+            properties=safe_props,
         )
 
 
@@ -97,16 +160,21 @@ def capture_exception(
     distinct_id: str | None = None,
     properties: dict[str, Any] | None = None,
 ) -> None:
-    """Attach an exception to PostHog with a consistent property shape."""
+    """Attach an exception to PostHog with a consistent property shape.
+
+    ``str(exc)`` and ``properties`` are both passed through ``_redact``
+    so a leaked DSN in a psycopg / redis-py error message does not
+    surface in the PostHog inbox (Sprint 4.17).
+    """
 
     if client is None:
         return
-    payload = {
+    payload: dict[str, Any] = {
         "exception_type": type(exc).__name__,
-        "exception_message": str(exc),
+        "exception_message": _redact(str(exc)),
     }
     if properties:
-        payload.update(properties)
+        payload.update(_redact(properties))
     with suppress(Exception):
         client.capture(
             distinct_id=distinct_id or _SERVER_DISTINCT_ID,

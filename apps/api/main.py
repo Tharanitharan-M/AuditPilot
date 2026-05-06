@@ -761,14 +761,16 @@ async def _chat_stream_generator(
         )
 
     # Sprint 4 chunks 4.4a/4.4b — seed graph state with scope + intent.
-    # Sprint 5 — also seed user_id, repo_full_names, and scan_run_id so the
-    # evidence persistence layer and GitHub collector have what they need.
+    # Sprint 5 chunk 5.19 — ``repo_full_names`` is intentionally NOT
+    # seeded into state; it lives in the collector closure instead so
+    # external repo names never enter the LangGraph checkpoint store.
+    # Sprint 5 — seed user_id and scan_run_id so the persistence layer
+    # and the GitHub collector have what they need.
     graph_input: dict[str, Any] = {
         "messages": lc_messages,
         "intent": req.intent,
         "repo_include_list": list(req.repo_include_list),
         "user_id": user_id,
-        "repo_full_names": repo_full_names or {},
         "scan_run_id": scan_run_id,
     }
 
@@ -907,6 +909,34 @@ async def chat(
             )
     except Exception:  # noqa: BLE001
         pass
+
+    # Sprint 4 chunk 4.11 — server-side scope cross-check. The frontend
+    # supplies ``repo_include_list``, but we cannot trust it: a malicious
+    # or buggy client could request a scan of repos the user never picked
+    # on the connector. ``_fetch_repo_full_names`` joins against
+    # ``connector_scoped_repos`` with RLS-bound ``user_id``, so its keys
+    # are exactly the provider_repo_ids the user owns on this connector.
+    # Filter the include list to that intersection. When ``repo_full_names``
+    # is empty (no DB pool, no token, no scope) we leave the original list
+    # in place so the validate_scope node can still emit its empty-scope
+    # refusal message — that path is independent of cross-checking.
+    if repo_full_names and req.repo_include_list:
+        original_count = len(req.repo_include_list)
+        validated = [
+            rid for rid in req.repo_include_list if rid in repo_full_names
+        ]
+        if len(validated) != original_count:
+            logger.warning(
+                "chat.scope.cross_check_filtered user_id=%s requested=%d retained=%d",
+                user_id,
+                original_count,
+                len(validated),
+            )
+        # ChatRequest is mutable (extra='ignore', not frozen). Replace the
+        # field in-place so every downstream consumer (graph_input,
+        # scan_runs row, _chat_stream_generator) sees the cross-checked
+        # list rather than the client-supplied one.
+        req.repo_include_list = validated
 
     gemini_key: str | None = None
     try:

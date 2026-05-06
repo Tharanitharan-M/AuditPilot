@@ -154,50 +154,61 @@ async def check_branch_protection(
 
     Returns one Evidence row regardless of whether protection is enabled so
     the control_map always has a GitHub/CC6.7/CC8.1 signal for this repo.
+    Sprint 5 chunk 5.18 — per-check OTel span isolates this check's
+    latency / failure inside the parent ``github_evidence.collect`` span.
     """
 
-    owner, repo = full_name.split("/", 1)
-    headers = _github_headers(github_token)
+    with tracer.start_as_current_span("github_evidence.branch_protection") as span:
+        span.set_attribute("repo.full_name", full_name)
 
-    # Step 1: get default branch name.
-    default_branch = "main"
-    try:
-        r = await client.get(
-            f"{_GITHUB_API_BASE}/repos/{owner}/{repo}",
-            headers=headers,
-        )
-        if r.status_code == 200:
-            default_branch = r.json().get("default_branch", "main")
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "github_evidence.branch_protection.repo_info_failed repo=%s err=%r",
-            full_name,
-            exc,
-        )
+        owner, repo = full_name.split("/", 1)
+        headers = _github_headers(github_token)
 
-    # Step 2: fetch branch protection.
-    protection_data: dict[str, Any] = {}
-    enabled = False
-    try:
-        r = await client.get(
-            f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/branches/{default_branch}/protection",
-            headers=headers,
-        )
-        if r.status_code == 200:
-            enabled = True
-            protection_data = r.json()
-        elif r.status_code == 404:
-            # 404 means protection not configured — not an error.
-            protection_data = {"message": "Branch protection not configured"}
-        else:
-            protection_data = {"status_code": r.status_code, "detail": r.text[:200]}
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "github_evidence.branch_protection.failed repo=%s err=%r",
-            full_name,
-            exc,
-        )
-        protection_data = {"error": str(exc)[:200]}
+        # Step 1: get default branch name.
+        default_branch = "main"
+        try:
+            r = await client.get(
+                f"{_GITHUB_API_BASE}/repos/{owner}/{repo}",
+                headers=headers,
+            )
+            if r.status_code == 200:
+                default_branch = r.json().get("default_branch", "main")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "github_evidence.branch_protection.repo_info_failed repo=%s err=%r",
+                full_name,
+                exc,
+            )
+            span.set_attribute("error.repo_info", type(exc).__name__)
+
+        span.set_attribute("repo.default_branch", default_branch)
+
+        # Step 2: fetch branch protection.
+        protection_data: dict[str, Any] = {}
+        enabled = False
+        try:
+            r = await client.get(
+                f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/branches/{default_branch}/protection",
+                headers=headers,
+            )
+            span.set_attribute("http.status_code", r.status_code)
+            if r.status_code == 200:
+                enabled = True
+                protection_data = r.json()
+            elif r.status_code == 404:
+                # 404 means protection not configured — not an error.
+                protection_data = {"message": "Branch protection not configured"}
+            else:
+                protection_data = {"status_code": r.status_code, "detail": r.text[:200]}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "github_evidence.branch_protection.failed repo=%s err=%r",
+                full_name,
+                exc,
+            )
+            span.set_attribute("error.protection", type(exc).__name__)
+            protection_data = {"error": str(exc)[:200]}
+        span.set_attribute("protection.enabled", enabled)
 
     # Normalize: keep only security-relevant fields from the protection response.
     normalized = _strip_volatile({
@@ -256,41 +267,50 @@ async def check_org_mfa(
     Returns empty list when ``owner`` is a personal account (not an org) — the
     API returns 404 in that case, which we swallow gracefully.
 
-    Requires ``read:org`` OAuth scope.
+    Requires ``read:org`` OAuth scope. Sprint 5 chunk 5.18 — per-check
+    OTel span isolates this check inside the parent collect span.
     """
 
-    owner = full_name.split("/", 1)[0]
-    headers = _github_headers(github_token)
-    mfa_required: bool | None = None
-    org_data: dict[str, Any] = {}
+    with tracer.start_as_current_span("github_evidence.org_mfa") as span:
+        owner = full_name.split("/", 1)[0]
+        span.set_attribute("repo.full_name", full_name)
+        span.set_attribute("org.owner", owner)
 
-    try:
-        r = await client.get(
-            f"{_GITHUB_API_BASE}/orgs/{owner}",
-            headers=headers,
-        )
-        if r.status_code == 200:
-            body = r.json()
-            mfa_required = body.get("two_factor_requirement_enabled")
-            org_data = {
-                "org": owner,
-                "two_factor_requirement_enabled": mfa_required,
-                "members_can_create_repositories": body.get(
-                    "members_can_create_repositories"
-                ),
-            }
-        elif r.status_code == 404:
-            # Personal account — no org-level MFA. Skip silently.
+        headers = _github_headers(github_token)
+        mfa_required: bool | None = None
+        org_data: dict[str, Any] = {}
+
+        try:
+            r = await client.get(
+                f"{_GITHUB_API_BASE}/orgs/{owner}",
+                headers=headers,
+            )
+            span.set_attribute("http.status_code", r.status_code)
+            if r.status_code == 200:
+                body = r.json()
+                mfa_required = body.get("two_factor_requirement_enabled")
+                org_data = {
+                    "org": owner,
+                    "two_factor_requirement_enabled": mfa_required,
+                    "members_can_create_repositories": body.get(
+                        "members_can_create_repositories"
+                    ),
+                }
+                span.set_attribute("org.mfa_required", bool(mfa_required))
+            elif r.status_code == 404:
+                # Personal account — no org-level MFA. Skip silently.
+                span.set_attribute("org.personal_account", True)
+                return []
+            else:
+                org_data = {"org": owner, "status_code": r.status_code, "detail": r.text[:200]}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "github_evidence.org_mfa.failed owner=%s err=%r",
+                owner,
+                exc,
+            )
+            span.set_attribute("error.type", type(exc).__name__)
             return []
-        else:
-            org_data = {"org": owner, "status_code": r.status_code, "detail": r.text[:200]}
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "github_evidence.org_mfa.failed owner=%s err=%r",
-            owner,
-            exc,
-        )
-        return []
 
     normalized = _strip_volatile(org_data)
     status = "passing" if mfa_required else ("failing" if mfa_required is False else "unknown")
@@ -322,41 +342,50 @@ async def check_code_scanning(
     - 200 → enabled, returns open alert count.
     - 404 with "no analysis found" → GHAS enabled but no scan yet run.
     - 403 / 404 "Advanced Security not enabled" → GHAS disabled.
+
+    Sprint 5 chunk 5.18 — per-check OTel span.
     """
 
-    owner, repo = full_name.split("/", 1)
-    headers = _github_headers(github_token)
-    enabled = False
-    open_alert_count = 0
+    with tracer.start_as_current_span("github_evidence.code_scanning") as span:
+        span.set_attribute("repo.full_name", full_name)
 
-    try:
-        r = await client.get(
-            f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/code-scanning/alerts",
-            headers=headers,
-            params={"state": "open", "per_page": "1"},
-        )
-        if r.status_code == 200:
-            # Count is in the X-Total-Count header if present, else len(body).
-            enabled = True
-            total_header = r.headers.get("x-total-count")
-            if total_header is not None:
-                open_alert_count = int(total_header)
-            else:
-                open_alert_count = len(r.json())
-        elif r.status_code == 404:
-            body = r.json()
-            msg = body.get("message", "")
-            # "no analysis found" means GHAS is on but no scan has run yet.
-            if "no analysis" in msg.lower():
+        owner, repo = full_name.split("/", 1)
+        headers = _github_headers(github_token)
+        enabled = False
+        open_alert_count = 0
+
+        try:
+            r = await client.get(
+                f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/code-scanning/alerts",
+                headers=headers,
+                params={"state": "open", "per_page": "1"},
+            )
+            span.set_attribute("http.status_code", r.status_code)
+            if r.status_code == 200:
+                # Count is in the X-Total-Count header if present, else len(body).
                 enabled = True
-                open_alert_count = 0
-            # Otherwise GHAS is genuinely disabled.
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "github_evidence.code_scanning.failed repo=%s err=%r",
-            full_name,
-            exc,
-        )
+                total_header = r.headers.get("x-total-count")
+                if total_header is not None:
+                    open_alert_count = int(total_header)
+                else:
+                    open_alert_count = len(r.json())
+            elif r.status_code == 404:
+                body = r.json()
+                msg = body.get("message", "")
+                # "no analysis found" means GHAS is on but no scan has run yet.
+                if "no analysis" in msg.lower():
+                    enabled = True
+                    open_alert_count = 0
+                # Otherwise GHAS is genuinely disabled.
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "github_evidence.code_scanning.failed repo=%s err=%r",
+                full_name,
+                exc,
+            )
+            span.set_attribute("error.type", type(exc).__name__)
+        span.set_attribute("code_scanning.enabled", enabled)
+        span.set_attribute("code_scanning.open_alerts", open_alert_count)
 
     normalized = _strip_volatile({
         "code_scanning_enabled": enabled,
@@ -388,38 +417,47 @@ async def check_secret_scanning(
     Calls ``GET /repos/{owner}/{repo}/secret-scanning/alerts``.
     - 200 → enabled; count open alerts.
     - 404 with "Secret scanning is disabled" → disabled.
+
+    Sprint 5 chunk 5.18 — per-check OTel span.
     """
 
-    owner, repo = full_name.split("/", 1)
-    headers = _github_headers(github_token)
-    enabled = False
-    open_alert_count = 0
+    with tracer.start_as_current_span("github_evidence.secret_scanning") as span:
+        span.set_attribute("repo.full_name", full_name)
 
-    try:
-        r = await client.get(
-            f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/secret-scanning/alerts",
-            headers=headers,
-            params={"state": "open", "per_page": "1"},
-        )
-        if r.status_code == 200:
-            enabled = True
-            total_header = r.headers.get("x-total-count")
-            if total_header is not None:
-                open_alert_count = int(total_header)
-            else:
-                open_alert_count = len(r.json())
-        elif r.status_code == 404:
-            # Disabled — not an error worth logging.
-            pass
-        elif r.status_code == 422:
-            # Public repo with secret scanning not available.
-            pass
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "github_evidence.secret_scanning.failed repo=%s err=%r",
-            full_name,
-            exc,
-        )
+        owner, repo = full_name.split("/", 1)
+        headers = _github_headers(github_token)
+        enabled = False
+        open_alert_count = 0
+
+        try:
+            r = await client.get(
+                f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/secret-scanning/alerts",
+                headers=headers,
+                params={"state": "open", "per_page": "1"},
+            )
+            span.set_attribute("http.status_code", r.status_code)
+            if r.status_code == 200:
+                enabled = True
+                total_header = r.headers.get("x-total-count")
+                if total_header is not None:
+                    open_alert_count = int(total_header)
+                else:
+                    open_alert_count = len(r.json())
+            elif r.status_code == 404:
+                # Disabled — not an error worth logging.
+                pass
+            elif r.status_code == 422:
+                # Public repo with secret scanning not available.
+                pass
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "github_evidence.secret_scanning.failed repo=%s err=%r",
+                full_name,
+                exc,
+            )
+            span.set_attribute("error.type", type(exc).__name__)
+        span.set_attribute("secret_scanning.enabled", enabled)
+        span.set_attribute("secret_scanning.open_alerts", open_alert_count)
 
     normalized = _strip_volatile({
         "secret_scanning_enabled": enabled,
@@ -453,69 +491,82 @@ async def check_dependabot(
        is enabled, 404 if disabled.
     2. ``GET /repos/{owner}/{repo}/dependabot/alerts`` — fetch open alert count
        (only called when Dependabot is known-enabled from step 1).
+
+    Sprint 5 chunk 5.18 — per-check OTel span.
     """
 
-    owner, repo = full_name.split("/", 1)
-    headers = _github_headers(github_token)
-    dependabot_enabled = False
-    auto_remediation = False
-    open_alert_count = 0
+    with tracer.start_as_current_span("github_evidence.dependabot") as span:
+        span.set_attribute("repo.full_name", full_name)
 
-    # Step 1: check if Dependabot alerts are enabled.
-    try:
-        r = await client.get(
-            f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/vulnerability-alerts",
-            headers=headers,
-        )
-        if r.status_code == 204:
-            dependabot_enabled = True
-        elif r.status_code == 404:
-            dependabot_enabled = False
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "github_evidence.dependabot.vuln_check_failed repo=%s err=%r",
-            full_name,
-            exc,
-        )
+        owner, repo = full_name.split("/", 1)
+        headers = _github_headers(github_token)
+        dependabot_enabled = False
+        auto_remediation = False
+        open_alert_count = 0
 
-    # Step 2: if enabled, count open alerts and check auto-remediation.
-    if dependabot_enabled:
+        # Step 1: check if Dependabot alerts are enabled.
         try:
             r = await client.get(
-                f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/dependabot/alerts",
+                f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/vulnerability-alerts",
                 headers=headers,
-                params={"state": "open", "per_page": "1"},
             )
-            if r.status_code == 200:
-                total_header = r.headers.get("x-total-count")
-                if total_header is not None:
-                    open_alert_count = int(total_header)
-                else:
-                    open_alert_count = len(r.json())
+            span.set_attribute("vuln_alerts.status_code", r.status_code)
+            if r.status_code == 204:
+                dependabot_enabled = True
+            elif r.status_code == 404:
+                dependabot_enabled = False
         except Exception as exc:  # noqa: BLE001
             logger.warning(
-                "github_evidence.dependabot.alert_count_failed repo=%s err=%r",
+                "github_evidence.dependabot.vuln_check_failed repo=%s err=%r",
                 full_name,
                 exc,
             )
+            span.set_attribute("error.vuln_check", type(exc).__name__)
 
-        # Step 3: check auto-remediation (security updates).
-        try:
-            r = await client.get(
-                f"{_GITHUB_API_BASE}/repos/{owner}/{repo}",
-                headers=headers,
-            )
-            if r.status_code == 200:
-                body = r.json()
-                sa = body.get("security_and_analysis") or {}
-                dep_su = sa.get("dependabot_security_updates") or {}
-                auto_remediation = dep_su.get("status") == "enabled"
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "github_evidence.dependabot.auto_remediation_check_failed repo=%s err=%r",
-                full_name,
-                exc,
-            )
+        # Step 2: if enabled, count open alerts and check auto-remediation.
+        if dependabot_enabled:
+            try:
+                r = await client.get(
+                    f"{_GITHUB_API_BASE}/repos/{owner}/{repo}/dependabot/alerts",
+                    headers=headers,
+                    params={"state": "open", "per_page": "1"},
+                )
+                span.set_attribute("alerts.status_code", r.status_code)
+                if r.status_code == 200:
+                    total_header = r.headers.get("x-total-count")
+                    if total_header is not None:
+                        open_alert_count = int(total_header)
+                    else:
+                        open_alert_count = len(r.json())
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "github_evidence.dependabot.alert_count_failed repo=%s err=%r",
+                    full_name,
+                    exc,
+                )
+                span.set_attribute("error.alert_count", type(exc).__name__)
+
+            # Step 3: check auto-remediation (security updates).
+            try:
+                r = await client.get(
+                    f"{_GITHUB_API_BASE}/repos/{owner}/{repo}",
+                    headers=headers,
+                )
+                if r.status_code == 200:
+                    body = r.json()
+                    sa = body.get("security_and_analysis") or {}
+                    dep_su = sa.get("dependabot_security_updates") or {}
+                    auto_remediation = dep_su.get("status") == "enabled"
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "github_evidence.dependabot.auto_remediation_check_failed repo=%s err=%r",
+                    full_name,
+                    exc,
+                )
+                span.set_attribute("error.auto_remediation", type(exc).__name__)
+        span.set_attribute("dependabot.enabled", dependabot_enabled)
+        span.set_attribute("dependabot.auto_remediation", auto_remediation)
+        span.set_attribute("dependabot.open_alerts", open_alert_count)
 
     normalized = _strip_volatile({
         "dependabot_enabled": dependabot_enabled,
