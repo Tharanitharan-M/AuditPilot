@@ -120,9 +120,28 @@ class ScopedRepoSelection(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider_repo_id: str = Field(min_length=1, max_length=64)
-    full_name: str = Field(min_length=3, max_length=200)
-    private: bool = False
+    provider_repo_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        description=(
+            "GitHub numeric repo id encoded as a string. Must be 1-64 chars "
+            "and is the unique key in the connector_scoped_repos table."
+        ),
+    )
+    full_name: str = Field(
+        ...,
+        min_length=3,
+        max_length=200,
+        description=(
+            "GitHub 'owner/repo' display name. Surfaced in the dashboard "
+            "and used by the GitHub evidence collector to build REST URLs."
+        ),
+    )
+    private: bool = Field(
+        default=False,
+        description="True when the repo is private. Surfaced in the picker UI.",
+    )
 
 
 class ScopedReposPatch(BaseModel):
@@ -136,7 +155,14 @@ class ScopedReposPatch(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    repos: list[ScopedRepoSelection] = Field(default_factory=list, max_length=500)
+    repos: list[ScopedRepoSelection] = Field(
+        default_factory=list,
+        max_length=500,
+        description=(
+            "Full desired set of scoped repos. Sending [] clears the scope. "
+            "Capped at 500 entries to bound the per-request DB transaction."
+        ),
+    )
 
 
 class ScopedReposOut(BaseModel):
@@ -144,9 +170,19 @@ class ScopedReposOut(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    connector_id: str
-    repos: list[ScopedRepoSelection] = Field(default_factory=list)
-    count: int = 0
+    connector_id: str = Field(
+        ...,
+        description="Clerk external_account.id (eac_*) the scope is bound to.",
+    )
+    repos: list[ScopedRepoSelection] = Field(
+        default_factory=list,
+        description="Repos currently scoped on the connector after the operation.",
+    )
+    count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of scoped repos (== len(repos)).",
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -208,12 +244,36 @@ async def _delete_clerk_external_account(
 
 # ── connector_scoped_repos helpers (Sprint 3.5.3) ─────────────────────────────
 
+async def _set_rls_user(conn: Any, user_id: str) -> None:
+    """Sprint 3.5.6 — bind the per-request RLS user_id on this connection.
+
+    Every helper that opens a connection from the pool MUST call this
+    immediately after acquiring the connection. The RLS policy on
+    ``connector_scoped_repos`` (and every other tenant-scoped table)
+    matches against ``current_setting('app.current_user_id', true)``;
+    without this call the setting is empty and the policy is effectively
+    a no-op. Defense-in-depth ``WHERE user_id = %s`` clauses still apply.
+
+    The third arg ``true`` is psql's ``is_local`` — the setting only lives
+    for the current transaction / connection scope, so a borrowed pool
+    connection returned to the pool doesn't leak the user_id.
+    """
+
+    if not user_id:
+        raise ValueError("user_id is required for RLS context")
+    await conn.execute(
+        "SELECT set_config('app.current_user_id', %s, true)",
+        (user_id,),
+    )
+
+
 async def _count_scoped_repos(
     pool: AppDbPool, user_id: str, connector_id: str
 ) -> int:
     """Count rows in connector_scoped_repos for a connector. Defense-in-depth
     WHERE on user_id even though RLS would block cross-tenant rows."""
     async with pool.connection() as conn:
+        await _set_rls_user(conn, user_id)
         async with conn.cursor() as cur:
             await cur.execute(
                 "SELECT COUNT(*) FROM connector_scoped_repos "

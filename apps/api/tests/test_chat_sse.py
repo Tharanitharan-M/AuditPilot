@@ -94,11 +94,15 @@ async def client(lookup_then_reply_model):
     """
 
     from apps.api import main as main_module
+    from apps.api.auth.clerk import ClerkUser, verify_clerk_token
+
+    _fake_user = ClerkUser(user_id="user_test", session_id="sess_test")
 
     original_model = main_module._chat_model_factory
     original_mcp = main_module._chat_mcp_toolset
     main_module._chat_model_factory = lambda: lookup_then_reply_model
     main_module._chat_mcp_toolset = lambda: False
+    main_module.app.dependency_overrides[verify_clerk_token] = lambda: _fake_user
     try:
         transport = ASGITransport(app=main_module.app, raise_app_exceptions=False)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -106,6 +110,7 @@ async def client(lookup_then_reply_model):
     finally:
         main_module._chat_model_factory = original_model
         main_module._chat_mcp_toolset = original_mcp
+        main_module.app.dependency_overrides.pop(verify_clerk_token, None)
 
 
 async def _consume_sse_stream(client: AsyncClient, body: dict) -> tuple[dict, list[str]]:

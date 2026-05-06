@@ -129,6 +129,41 @@ def compliance_kb_mcp_server(
     return _compliance_kb_mcp_factory(**kwargs)
 
 
+def evidence_store_mcp_server(
+    *,
+    db_url: str,
+    gemini_api_key: str | None = None,
+    timeout: float = 15.0,
+    read_timeout: float = 30.0,
+) -> MCPServerStdio:
+    """Build the ``evidence-store-mcp`` stdio connection.
+
+    Spawns ``python -m evidence_store_mcp`` (the package entry point in
+    ``packages/evidence-store-mcp``). Environment variables ``DATABASE_URL``
+    and optionally ``GEMINI_API_KEY`` are injected into the subprocess
+    environment; they never appear in LangGraph state.
+
+    The token is passed via the subprocess env rather than as a tool argument
+    so that it does not appear in Langfuse traces or LangGraph checkpoints.
+    """
+    import os
+
+    env: dict[str, str] = {**os.environ, "DATABASE_URL": db_url}
+    if gemini_api_key:
+        env["GEMINI_API_KEY"] = gemini_api_key
+
+    kwargs: dict[str, Any] = {
+        "command": _resolve_python_executable(),
+        "args": ["-m", "evidence_store_mcp"],
+        "timeout": timeout,
+        "read_timeout": read_timeout,
+        "id": "evidence_store_mcp",
+        "env": env,
+    }
+    return MCPServerStdio(**kwargs)
+
+
 __all__ = [
     "compliance_kb_mcp_server",
+    "evidence_store_mcp_server",
 ]

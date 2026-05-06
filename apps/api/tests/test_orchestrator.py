@@ -194,23 +194,65 @@ def test_system_prompt_lists_only_compliance_kb_tools() -> None:
         )
 
 
-def test_system_prompt_refuses_repo_state_questions() -> None:
-    """The prompt must instruct the LLM to refuse repo-read questions.
+def test_system_prompt_describes_sprint5_evidence_pipeline() -> None:
+    """The prompt must describe the Sprint 5 evidence pipeline accurately.
 
-    Sprint 4 ships only the static NIST catalog tools. The orchestrator
-    has no GitHub tool wired in yet (Sprint 5 chunks 5.3-5.7). Without
-    this clause the LLM rephrases the SCAN CONTEXT block when asked
-    'can you read my repo?' — observed during Sprint-4 manual testing.
+    Sprint 5 wired the five GitHub collectors (chunks 5.3-5.7). The
+    prompt must:
+      - name the five check types so the LLM knows what is collected
+      - describe SCAN CONTEXT as real read-only data (not placeholder)
+      - explicitly forbid 'placeholder' / 'mock' caveats so the LLM
+        does not undersell the live data
+      - keep the read-only / draft-only framing
     """
 
     from apps.api.agents.orchestrator import SYSTEM_PROMPT
 
-    # Strong signals the refusal mode is present.
-    assert "no tool" in SYSTEM_PROMPT.lower() or "no tool that reads" in SYSTEM_PROMPT
-    assert "branch protection" in SYSTEM_PROMPT
-    assert "placeholder" in SYSTEM_PROMPT.lower()
-    # The canonical refusal example list is documented.
-    assert "is branch protection enabled" in SYSTEM_PROMPT
+    # Five collectors named by their normalised check_type slugs.
+    for check in (
+        "branch-protection",
+        "org-mfa",
+        "code-scanning",
+        "secret-scanning",
+        "dependabot",
+    ):
+        assert check in SYSTEM_PROMPT, f"missing collector: {check}"
+
+    # SCAN CONTEXT is described as real, not placeholder.
+    assert "SCAN CONTEXT" in SYSTEM_PROMPT
+    assert "real read-only data" in SYSTEM_PROMPT.lower() or "real" in SYSTEM_PROMPT
+
+    # Hard guard against the Sprint 4 hedge surfacing in chat replies.
+    assert "Do NOT add 'placeholder data'" in SYSTEM_PROMPT
+
+    # Read-only / draft-only framing must remain.
+    assert "read-only by design" in SYSTEM_PROMPT
+    assert "draft" in SYSTEM_PROMPT.lower()
+
+    # Sprint 5 follow-up 5.24 — guard against the inverse failure mode
+    # where the LLM hallucinates a non-existent tool. The "TOOL SURFACE
+    # — STRICT" section must explicitly state which tools do NOT exist.
+    assert "There is NO tool named" in SYSTEM_PROMPT
+    assert "Never invent tool names" in SYSTEM_PROMPT
+
+
+# ─── Sprint 5 follow-up 5.22 — embedding URL contract test ───────────────────
+
+
+def test_embedding_url_pinned_to_gemini_embedding_001_v1beta() -> None:
+    """Both call sites must point at gemini-embedding-001 on /v1beta/.
+
+    text-embedding-004 was retired in 2026 and only /v1beta/ exposes the
+    successor model (chunk 5.10 / Sprint-5 close-out). The default 3072
+    dim does not fit our vector(768) column — outputDimensionality=768
+    must be sent on every call.
+    """
+
+    from apps.api.services.evidence_persistence import _GEMINI_EMBED_URL
+
+    assert "/v1beta/" in _GEMINI_EMBED_URL
+    assert "gemini-embedding-001" in _GEMINI_EMBED_URL
+    assert "text-embedding-004" not in _GEMINI_EMBED_URL
 
 
 # ─── Chunk 3.0b — control_id regex validator (OWASP LLM06 defence-in-depth) ──

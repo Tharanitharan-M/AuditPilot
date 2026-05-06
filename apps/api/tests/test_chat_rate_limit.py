@@ -60,8 +60,16 @@ def chat_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 
     monkeypatch.setattr(main_module, "_chat_stream_generator", _passthrough_stream)
 
-    with TestClient(main_module.app) as client:
-        yield client
+    from apps.api.auth.clerk import ClerkUser, verify_clerk_token
+
+    _fake_user = ClerkUser(user_id="user_test", session_id="sess_test")
+    main_module.app.dependency_overrides[verify_clerk_token] = lambda: _fake_user
+
+    try:
+        with TestClient(main_module.app) as client:
+            yield client
+    finally:
+        main_module.app.dependency_overrides.pop(verify_clerk_token, None)
 
 
 def test_chat_rate_limit_returns_429_after_quota_exhausted(

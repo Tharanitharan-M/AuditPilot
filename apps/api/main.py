@@ -16,9 +16,13 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import lru_cache
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import FastAPI, Request
+import httpx
+
+from opentelemetry import trace
+
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from posthog import Posthog
@@ -61,7 +65,10 @@ from apps.api.observability.posthog import (
     make_observability_hook,
     shutdown_posthog,
 )
+from apps.api.auth.clerk import ClerkUser, verify_clerk_token
+from apps.api.db import AppDbPoolOptionalDep
 from apps.api.routes import actions_router, connectors_router
+from apps.api.services.github_evidence import make_github_evidence_collector
 from apps.api.sse.ai_sdk_v6 import (
     AI_SDK_V6_HEADER,
     AI_SDK_V6_VERSION,
@@ -69,6 +76,7 @@ from apps.api.sse.ai_sdk_v6 import (
 )
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 posthog_client: Posthog | None = None
 prompt_loader: PromptLoader | None = None
 
@@ -369,7 +377,10 @@ class ChatMessage(BaseModel):
     we flatten to a plain content string for the Python-side LangGraph state.
     """
 
-    model_config = ConfigDict(extra="allow")
+    # extra="ignore" silently drops AI SDK 6 metadata fields (id, createdAt, etc.)
+    # that the server does not need. Avoids OWASP LLM01 / prompt-injection by
+    # blocking arbitrary client-supplied fields from being retained on the model.
+    model_config = ConfigDict(extra="ignore")
 
     role: Literal["user", "assistant", "system"]
     content: str | None = None
@@ -393,21 +404,30 @@ class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     messages: list[ChatMessage]
-    thread_id: str | None = None
+    thread_id: str | None = Field(default=None, max_length=128)
     intent: (
         Literal["free_chat", "run_readiness_scan", "draft_policy", "fill_questionnaire"]
         | None
     ) = "free_chat"
     # Sprint 4 chunk 4.4a — list of GitHub provider_repo_id strings the
     # user has scoped on their connector. The frontend populates this
-    # from `/api/connectors/{id}/scoped-repos`. The backend trusts the
-    # list — Sprint 6 chunk 6.2 wires Clerk auth on /chat which then
-    # cross-checks against the persisted scope server-side.
-    repo_include_list: list[str] = Field(
+    # from `/api/connectors/{id}/scoped-repos`.
+    #
+    # Sprint 4 chunk 4.16 — per-item cap of 64 chars (max GitHub repo id
+    # length plus headroom). Pydantic v2's outer ``max_length=500`` only
+    # bounds the list; without an inner ``Annotated[str, max_length=…]``
+    # a single 1 MB string could slip through and inflate trace payloads.
+    # Sprint 4 chunk 4.11 — the /chat handler additionally cross-checks
+    # this list against ``connector_scoped_repos`` server-side so a
+    # malicious client cannot inject repo ids the user never picked.
+    repo_include_list: list[
+        Annotated[str, Field(min_length=1, max_length=64)]
+    ] = Field(
         default_factory=list,
         description=(
             "GitHub provider_repo_id strings the user has scoped on the "
-            "active connector. Required when intent='run_readiness_scan'."
+            "active connector. Required when intent='run_readiness_scan'. "
+            "Each entry capped at 64 chars; list capped at 500 entries."
         ),
         max_length=500,
     )
@@ -416,10 +436,197 @@ class ChatRequest(BaseModel):
         description=(
             "Clerk external_account.id (e.g. 'eac_*') the scan should "
             "operate on. Sprint 4 surfaces this in trace metadata; "
-            "Sprint 6 server-side validates the scope against this id."
+            "Sprint 4 chunk 4.11 cross-checks scope against this id."
         ),
         max_length=64,
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Sprint 5 — GitHub token + repo-name helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+async def _fetch_github_oauth_token(
+    user_id: str,
+    clerk_secret_key: str,
+) -> str | None:
+    """Fetch the user's GitHub OAuth access token from the Clerk Backend API.
+
+    Calls ``GET /v1/users/{user_id}/oauth_access_tokens/oauth_github``.
+    Returns the first active token or ``None`` when the user has not connected
+    GitHub or the call fails.
+
+    Read-only invariant (ADR-0004): this only reads the token, never writes.
+    Sprint 6 chunk 6.2 will make auth required on /chat; until then this is
+    best-effort — callers fall back to the stub collector when None.
+    """
+
+    url = f"https://api.clerk.com/v1/users/{user_id}/oauth_access_tokens/oauth_github"
+    headers = {
+        "Authorization": f"Bearer {clerk_secret_key}",
+        "Content-Type": "application/json",
+    }
+    with tracer.start_as_current_span("chat._fetch_github_oauth_token") as span:
+        span.set_attribute("user_id", user_id)
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get(url, headers=headers)
+            span.set_attribute("http.status_code", r.status_code)
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, list) and data:
+                    span.set_attribute("token.found", True)
+                    return data[0].get("token")
+            elif r.status_code == 404:
+                span.set_attribute("token.found", False)
+            else:
+                logger.warning(
+                    "clerk.oauth_token.failed user_id=%s status=%d",
+                    user_id,
+                    r.status_code,
+                )
+        except Exception as exc:  # noqa: BLE001
+            span.set_attribute("error.type", type(exc).__name__)
+            logger.warning("clerk.oauth_token.exception user_id=%s err=%r", user_id, exc)
+    return None
+
+
+async def _create_scan_run(
+    *,
+    user_id: str,
+    connector_id: str | None,
+    repo_include_list: list[str],
+    pool: Any,
+) -> str | None:
+    """Insert a ``scan_runs`` row and return its UUID as a string.
+
+    Sprint 5 chunk 5.1 wired the table; this helper ties the chat handler
+    to it so every ``run_readiness_scan`` turn produces a queryable run.
+    Returns ``None`` on failure so the caller can fall back to a token-
+    only flow without breaking the request.
+    """
+
+    with tracer.start_as_current_span("chat._create_scan_run") as span:
+        span.set_attribute("user_id", user_id)
+        span.set_attribute("repo_include_count", len(repo_include_list))
+        if connector_id:
+            span.set_attribute("connector_id", connector_id)
+        try:
+            async with pool.connection() as conn:
+                await conn.execute(
+                    "SELECT set_config('app.current_user_id', %s, true)",
+                    (user_id,),
+                )
+                row = await conn.execute(
+                    """
+                    INSERT INTO scan_runs
+                        (user_id, connector_id, repo_include_list, status)
+                    VALUES
+                        (%s, %s, %s::text[], 'running')
+                    RETURNING id
+                    """,
+                    (user_id, connector_id, repo_include_list),
+                )
+                first = await row.fetchone()
+                if first is None:
+                    return None
+                run_id = str(first[0])
+                span.set_attribute("scan_run_id", run_id)
+                return run_id
+        except Exception as exc:  # noqa: BLE001
+            span.set_attribute("error.type", type(exc).__name__)
+            logger.warning("scan_runs.create_failed user_id=%s err=%r", user_id, exc)
+            return None
+
+
+async def _complete_scan_run(
+    *,
+    scan_run_id: str | None,
+    user_id: str | None,
+    pool: Any | None,
+    status: str,
+) -> None:
+    """Mark a ``scan_runs`` row as completed / failed / cancelled.
+
+    Best-effort. ``status`` must be one of the values allowed by the
+    ``scan_runs__status_chk`` CHECK constraint.
+    """
+
+    if scan_run_id is None or pool is None or not user_id:
+        return
+    if status not in {"completed", "failed", "cancelled"}:
+        status = "completed"
+
+    try:
+        async with pool.connection() as conn:
+            await conn.execute(
+                "SELECT set_config('app.current_user_id', %s, true)",
+                (user_id,),
+            )
+            await conn.execute(
+                """
+                UPDATE scan_runs
+                SET    status       = %s,
+                       completed_at = now(),
+                       cancelled    = (%s = 'cancelled')
+                WHERE  id      = %s::uuid
+                  AND  user_id = %s
+                """,
+                (status, status, scan_run_id, user_id),
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "scan_runs.complete_failed scan_run_id=%s err=%r",
+            scan_run_id,
+            exc,
+        )
+
+
+async def _fetch_repo_full_names(
+    user_id: str,
+    connector_id: str | None,
+    repo_include_list: list[str],
+    pool: Any | None,
+) -> dict[str, str]:
+    """Look up provider_repo_id → full_name from connector_scoped_repos.
+
+    Returns an empty dict when the pool is None or the query fails so the
+    caller falls back to the stub evidence collector gracefully.
+    """
+
+    if not pool or not repo_include_list:
+        return {}
+
+    with tracer.start_as_current_span("chat._fetch_repo_full_names") as span:
+        span.set_attribute("user_id", user_id)
+        span.set_attribute("repo_include_count", len(repo_include_list))
+        if connector_id:
+            span.set_attribute("connector_id", connector_id)
+        try:
+            async with pool.connection() as conn:
+                await conn.execute(
+                    "SELECT set_config('app.current_user_id', %s, true)",
+                    (user_id,),
+                )
+                base_q = """
+                    SELECT provider_repo_id, full_name
+                    FROM   connector_scoped_repos
+                    WHERE  user_id = %s
+                      AND  provider_repo_id = ANY(%s::text[])
+                """
+                params: list[Any] = [user_id, repo_include_list]
+                if connector_id:
+                    base_q += " AND connector_id = %s"
+                    params.append(connector_id)
+
+                rows = await conn.execute(base_q, params)
+                result = {row[0]: row[1] async for row in rows}
+                span.set_attribute("matched_count", len(result))
+                return result
+        except Exception as exc:  # noqa: BLE001
+            span.set_attribute("error.type", type(exc).__name__)
+            logger.warning("repo_full_names.fetch_failed user_id=%s err=%r", user_id, exc)
+            return {}
 
 
 def _flatten_content(msg: ChatMessage) -> str:
@@ -490,6 +697,12 @@ async def _chat_stream_generator(
     thread_id: str,
     request: Request | None = None,
     disconnect_poll_interval_s: float = 5.0,
+    # Sprint 5 — optional context for GitHub evidence collection.
+    github_token: str | None = None,
+    repo_full_names: dict[str, str] | None = None,
+    db_pool: Any | None = None,
+    gemini_api_key: str | None = None,
+    user_id: str | None = None,
 ) -> AsyncIterator[str]:
     """Open a Langfuse observation and stream SSE out of the graph.
 
@@ -509,26 +722,54 @@ async def _chat_stream_generator(
 
     lc_messages = _to_langchain_messages(req.messages)
     checkpointer = _chat_checkpointer_factory()
-    # Sprint 4 chunk 4.3 — production /chat ALWAYS spawns the MCP server
-    # subprocess so the orchestrator dispatches lookup_control over the
-    # real stdio transport, the same way third-party consumers of
-    # compliance-kb-mcp will. Tests opt out by replacing
-    # ``_chat_model_factory`` AND ``_chat_mcp_toolset`` (the latter
-    # defaults to False so pure FunctionModel tests never fork).
+
+    # Sprint 5: build GitHub evidence collector when a token is available.
+    evidence_collector = None
+    if github_token and repo_full_names:
+        evidence_collector = make_github_evidence_collector(
+            github_token=github_token,
+            repo_full_names=repo_full_names,
+        )
+
     graph = build_graph(
         checkpointer,
         model=_chat_model_factory(),
         mcp_toolset=_chat_mcp_toolset(),
+        evidence_collector=evidence_collector,
+        db_pool=db_pool,
+        gemini_api_key=gemini_api_key,
     )
     config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
 
-    # Sprint 4 chunks 4.4a/4.4b — seed the graph state with the user's
-    # repo scope and intent so validate_scope, collect_evidence, and
-    # map_controls have what they need without re-reading the request.
+    # Sprint 5 — for run_readiness_scan turns, materialise a row in
+    # ``scan_runs`` so the evidence rows have a real foreign key and the
+    # ``list_scan_runs`` MCP tool can return real data. Best-effort: a
+    # missing pool / DB outage falls back to a UUID-only scan_run_id and
+    # the persistence layer keeps working without the FK.
+    scan_run_id: str | None = None
+    if (
+        req.intent == "run_readiness_scan"
+        and req.repo_include_list
+        and db_pool is not None
+        and user_id
+    ):
+        scan_run_id = await _create_scan_run(
+            user_id=user_id,
+            connector_id=req.connector_id,
+            repo_include_list=list(req.repo_include_list),
+            pool=db_pool,
+        )
+
+    # Sprint 4 chunks 4.4a/4.4b — seed graph state with scope + intent.
+    # Sprint 5 — also seed user_id, repo_full_names, and scan_run_id so the
+    # evidence persistence layer and GitHub collector have what they need.
     graph_input: dict[str, Any] = {
         "messages": lc_messages,
         "intent": req.intent,
         "repo_include_list": list(req.repo_include_list),
+        "user_id": user_id,
+        "repo_full_names": repo_full_names or {},
+        "scan_run_id": scan_run_id,
     }
 
     async with traced_chat(
@@ -582,23 +823,49 @@ async def _chat_stream_generator(
             _disconnect_watcher(), name="auditpilot.chat.disconnect_watcher"
         )
 
+        # Sprint 5 — track the run outcome so we can flip ``scan_runs.status``
+        # on the way out. Defaults to "completed" unless the producer
+        # raised, the client disconnected, or we yielded an error chunk.
+        run_outcome: str = "completed"
+
         try:
             async for chunk in producer:
                 if cancel_event.is_set():
                     # Client dropped — bail out before the next yield.
+                    run_outcome = "cancelled"
                     return
+                if '"type":"error"' in chunk or '"type":"abort"' in chunk:
+                    run_outcome = "failed"
                 yield chunk
+        except Exception:
+            run_outcome = "failed"
+            raise
         finally:
             watcher_task.cancel()
             try:
                 await watcher_task
             except (asyncio.CancelledError, Exception):  # noqa: BLE001
                 pass
+            # Best-effort completion — never raise from the finally block.
+            try:
+                await _complete_scan_run(
+                    scan_run_id=scan_run_id,
+                    user_id=user_id,
+                    pool=db_pool,
+                    status=run_outcome,
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("scan_runs.complete_unexpected_failure")
 
 
 @app.post("/chat")
 @limiter.limit(_chat_rate_limit)
-async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
+async def chat(
+    req: ChatRequest,
+    request: Request,
+    pool: AppDbPoolOptionalDep,
+    clerk_user: ClerkUser = Depends(verify_clerk_token),
+) -> StreamingResponse:
     """Stream orchestrator output as AI SDK 6 UIMessage SSE.
 
     Headers:
@@ -607,24 +874,61 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
 
     Body: ChatRequest JSON, matching AI SDK 6's `useChat` POST shape.
 
-    NOTE: Sprint 2 leaves this endpoint unauthenticated. Clerk JWT verification
-    wires in at Sprint 3 chunk 3.5 via a FastAPI dependency. Until then, the
-    ``@limiter.limit(_chat_rate_limit)`` decorator above caps requests at
-    ``CHAT_RATE_LIMIT`` (default ``10/minute``) per remote IP — Sprint 3 day-0
-    chunk 3.0a, OWASP LLM10 mitigation.
+    Auth: Clerk JWT required. Missing or invalid token → HTTP 401.
+    The verified user_id is used to fetch the user's GitHub OAuth token
+    from the Clerk Backend API (Sprint 5 chunks 5.3-5.7) and to scope
+    evidence persistence to the correct tenant (RLS).
+
+    Rate limiting: ``CHAT_RATE_LIMIT`` (default 10/minute) per IP — Sprint 3
+    day-0 chunk 3.0a, OWASP LLM10 mitigation.
     """
 
     thread_id = req.thread_id or f"thread_{uuid.uuid4().hex}"
     record_chat_request(intent=req.intent, outcome="started")
+
+    user_id: str = clerk_user.user_id
+    github_token: str | None = None
+    repo_full_names: dict[str, str] = {}
+
+    # Fetch GitHub OAuth token and repo names — non-fatal on failure so a
+    # missing connector does not break free-chat.
+    try:
+        settings = get_settings()
+        github_token = await _fetch_github_oauth_token(
+            user_id,
+            settings.clerk_secret_key.get_secret_value(),
+        )
+        if github_token and req.repo_include_list:
+            repo_full_names = await _fetch_repo_full_names(
+                user_id,
+                req.connector_id,
+                list(req.repo_include_list),
+                pool,
+            )
+    except Exception:  # noqa: BLE001
+        pass
+
+    gemini_key: str | None = None
+    try:
+        gemini_key = get_settings().gemini_api_key.get_secret_value()
+    except Exception:  # noqa: BLE001
+        pass
+
     return StreamingResponse(
-        # Sprint 4 chunk 4.9 — pass the request handle through so the
-        # generator can poll ``request.is_disconnected()`` and cancel
-        # the running graph if the client drops.
-        _chat_stream_generator(req=req, thread_id=thread_id, request=request),
+        _chat_stream_generator(
+            req=req,
+            thread_id=thread_id,
+            request=request,
+            github_token=github_token,
+            repo_full_names=repo_full_names,
+            db_pool=pool,
+            gemini_api_key=gemini_key,
+            user_id=user_id,
+        ),
         media_type="text/event-stream",
         headers={
             AI_SDK_V6_HEADER: AI_SDK_V6_VERSION,
             "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",  # defeat nginx/Cloudflare buffering
+            "X-Accel-Buffering": "no",
         },
     )

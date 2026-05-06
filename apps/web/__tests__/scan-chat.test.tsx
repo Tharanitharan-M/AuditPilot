@@ -41,6 +41,10 @@ let mockHookReturn = {
   append: mockAppend,
   error: null as Error | null,
   stop: mockStop,
+  // Sprint 5 — typed-data slots added to UseScanStreamReturn so ScanChat's
+  // optional `stream` prop satisfies the new shape in workspace mode.
+  controlMap: [],
+  evidenceRows: [],
 }
 
 vi.mock("@/lib/use-scan-stream", () => ({
@@ -126,6 +130,8 @@ describe("ScanChat", () => {
       append: mockAppend,
       error: null,
       stop: mockStop,
+      controlMap: [],
+      evidenceRows: [],
     }
   })
 

@@ -7,16 +7,17 @@
  * status chips that expand into a detail panel on click. No modal library;
  * uses a controlled <details>-style inline expansion.
  *
+ * Sprint 5 chunk 5.8: the detail panel now accepts an optional `evidenceMap`
+ * prop (evidence_id → EvidenceRow) so collected evidence rows render inline
+ * as `EvidenceCards` beneath the NIST 800-53 reference list.
+ *
  * Accessibility: WCAG 2.2 AA colour + status encoded in text (WCAG 1.4.1).
  * Each chip carries an aria-label that screen readers announce in full.
  *
- * Data source: caller-supplied `assessments` prop. Sprint 5 wires the live
- * SSE stream; for Sprint 4 the dashboard passes an empty array.
- *
- * Refs: PLAN.md Sprint 4 chunk 4.6, ADR-0013, US-006.
+ * Refs: PLAN.md Sprint 4 chunk 4.6, Sprint 5 chunk 5.8, ADR-0013, US-006.
  */
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   Card,
   CardContent,
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { EvidenceCards, type EvidenceRow } from "./evidence-cards"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -139,12 +141,22 @@ function ControlChip({ assessment, isOpen, onClick }: ChipProps) {
 interface DetailPanelProps {
   assessment: ControlAssessment
   onClose: () => void
+  /** Sprint 5.8: map of evidence_id → EvidenceRow for inline rendering. */
+  evidenceMap?: Map<string, EvidenceRow>
 }
 
-function DetailPanel({ assessment, onClose }: DetailPanelProps) {
+function DetailPanel({ assessment, onClose, evidenceMap }: DetailPanelProps) {
   const { tsc_id, status, confidence, nist_800_53_refs, evidence_ids, rationale } =
     assessment
   const pct = Math.round(confidence * 100)
+
+  // Resolve evidence rows that belong to this assessment.
+  const linkedRows: EvidenceRow[] = evidenceMap
+    ? evidence_ids.flatMap((eid) => {
+        const row = evidenceMap.get(eid)
+        return row ? [row] : []
+      })
+    : []
 
   return (
     <div
@@ -163,7 +175,6 @@ function DetailPanel({ assessment, onClose }: DetailPanelProps) {
               STATUS_CLASSES[status],
             ].join(" ")}
           >
-            {/* Screen-reader-friendly: visible word + sr-only prefix */}
             <span className="sr-only">Status: </span>
             {STATUS_LABELS[status]}
           </span>
@@ -212,8 +223,17 @@ function DetailPanel({ assessment, onClose }: DetailPanelProps) {
         )}
       </div>
 
-      {/* Evidence IDs */}
-      {evidence_ids.length > 0 && (
+      {/* Evidence rows (Sprint 5.8) — inline cards when evidenceMap provided */}
+      {linkedRows.length > 0 ? (
+        <div className="mt-3">
+          <EvidenceCards
+            rows={linkedRows}
+            heading={`Evidence (${linkedRows.length} row${linkedRows.length !== 1 ? "s" : ""})`}
+            initialVisible={3}
+          />
+        </div>
+      ) : evidence_ids.length > 0 ? (
+        /* Fallback: plain ID list when no map was supplied */
         <div className="mt-3">
           <p className="mb-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Evidence IDs
@@ -224,7 +244,7 @@ function DetailPanel({ assessment, onClose }: DetailPanelProps) {
             ))}
           </ul>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
@@ -249,34 +269,44 @@ function EmptyState() {
 
 interface ControlPostureGridProps {
   assessments?: ControlAssessment[]
+  /** Sprint 5.8: map of evidence_id → EvidenceRow. When provided, detail panels
+   *  render inline EvidenceCards instead of bare ID lists. */
+  evidenceMap?: Map<string, EvidenceRow>
 }
 
 export function ControlPostureGrid({
   assessments = [],
+  evidenceMap,
 }: ControlPostureGridProps) {
   /** tsc_id of the currently open detail panel, or null. */
   const [openId, setOpenId] = useState<string | null>(null)
 
+  // typescript-reviewer M-4 / Sprint 4 chunk 4.15 — memoise the lookup
+  // structures keyed on assessments. Re-renders triggered by ``openId``
+  // state changes (every chip click) used to rebuild these Maps; with
+  // 80+ TSC clauses live, that is wasted work and a measurable jank
+  // hazard. ``useMemo`` recomputes only when ``assessments`` changes.
+  const { byId, byParent, presentParents } = useMemo(() => {
+    const byIdMap = new Map<string, ControlAssessment>(
+      assessments.map((a) => [a.tsc_id, a])
+    )
+    const byParentMap = new Map<string, string[]>()
+    for (const a of assessments) {
+      const parent = parentOf(a.tsc_id)
+      const list = byParentMap.get(parent) ?? []
+      list.push(a.tsc_id)
+      byParentMap.set(parent, list)
+    }
+    return {
+      byId: byIdMap,
+      byParent: byParentMap,
+      presentParents: new Set(byParentMap.keys()),
+    }
+  }, [assessments])
+
   if (assessments.length === 0) {
     return <EmptyState />
   }
-
-  // Index assessments by tsc_id for O(1) lookup.
-  const byId = new Map<string, ControlAssessment>(
-    assessments.map((a) => [a.tsc_id, a])
-  )
-
-  // Group tsc_ids by parent (e.g. CC6.1 → CC6).
-  const byParent = new Map<string, string[]>()
-  for (const a of assessments) {
-    const parent = parentOf(a.tsc_id)
-    const list = byParent.get(parent) ?? []
-    list.push(a.tsc_id)
-    byParent.set(parent, list)
-  }
-
-  // Collect parents actually present in assessments.
-  const presentParents = new Set(byParent.keys())
 
   function toggle(tscId: string) {
     setOpenId((prev) => (prev === tscId ? null : tscId))
@@ -347,6 +377,7 @@ export function ControlPostureGrid({
                         <DetailPanel
                           assessment={openAssessment}
                           onClose={() => setOpenId(null)}
+                          evidenceMap={evidenceMap}
                         />
                       )}
                     </div>

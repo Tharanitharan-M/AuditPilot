@@ -28,20 +28,47 @@ from pydantic import BaseModel, ConfigDict, Field
 class Evidence(BaseModel):
     """A single evidence artifact collected from a user source system.
 
-    Sprint 2 skeleton: the full shape ships in Sprint 5 when `evidence-store-mcp`
-    lands. For now it carries enough fields to flow through the orchestrator
-    stub and be serialisable by the checkpointer.
+    Sprint 5 shape: fields align with the `evidence` DB table (migration
+    0005_evidence.sql). The `embedding` field is intentionally omitted from
+    the in-graph model — it is a 768-float vector too large for LangGraph
+    state and is only stored in Postgres by `evidence_persistence.py`.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=False)
 
     id: str
-    source_type: Literal["github", "clerk", "manual", "mock"] = "mock"
-    source_uri: str | None = None
-    raw: dict[str, Any] = Field(default_factory=dict)
-    content_hash: str | None = None
+    source_type: Literal["github", "clerk", "manual", "mock"] = Field(
+        default="mock",
+        description="Origin system of the evidence artifact.",
+    )
+    source_uri: str | None = Field(
+        default=None,
+        description="Canonical URI, e.g. 'github://owner/repo' or 'github://org/acme'.",
+    )
+    raw: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Normalized (timestamp-stripped) payload from the source API.",
+    )
+    content_hash: str | None = Field(
+        default=None,
+        description="SHA-256 of the normalized raw payload. Used as cache key.",
+    )
     collected_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
+        description="Wall-clock time the evidence was collected.",
+    )
+    # Sprint 5 — bookkeeping used by the persistence layer and drift-watcher.
+    scan_run_id: str | None = Field(
+        default=None,
+        description="ID of the scan run that produced this evidence row.",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description="Clerk user_id that owns this row. Set by the persistence layer.",
+    )
+    valid_until: datetime | None = Field(
+        default=None,
+        description="Optional freshness window. Sprint 9 drift-watcher re-collects past this.",
     )
 
 
@@ -122,6 +149,16 @@ class AuditPilotState(BaseModel):
     # Each entry is GitHub's `provider_repo_id` (numeric, string-encoded
     # for parity with the DB column).
     repo_include_list: list[str] = Field(default_factory=list)
+
+    # Sprint 5 chunk 5.3-5.7: maps provider_repo_id → "owner/repo" full name.
+    # Populated by the /chat handler from connector_scoped_repos before graph
+    # invocation so the GitHub evidence collector can call the REST API without
+    # an extra DB round-trip inside the graph node. NOT sensitive data (just
+    # repo names), so safe to checkpoint in the LangGraph state.
+    repo_full_names: dict[str, str] = Field(
+        default_factory=dict,
+        description="provider_repo_id → 'owner/repo' full name. Set at /chat call time.",
+    )
 
 
 # Intents that require a non-empty connector scope before any tool calls.

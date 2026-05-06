@@ -26,16 +26,37 @@ import {
   useScanStream,
   type DynamicToolPart,
   type ScanMessage,
+  type UseScanStreamReturn,
 } from "@/lib/use-scan-stream"
 
 interface ScanChatProps {
   connectorId: string
   repoIncludeList: string[]
+  /**
+   * Sprint 5 — when supplied, the chat uses an externally-owned stream
+   * (so siblings like the Control Posture grid render off the same
+   * single source of truth). When omitted, the component falls back to
+   * its self-contained Sprint 4 behaviour and owns its own hook.
+   */
+  stream?: UseScanStreamReturn
 }
 
-export function ScanChat({ connectorId, repoIncludeList }: ScanChatProps) {
+export function ScanChat({
+  connectorId,
+  repoIncludeList,
+  stream,
+}: ScanChatProps) {
   const hasScope = repoIncludeList.length > 0
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  const ownStream = useScanStream({
+    api: "/api/chat",
+    body: {
+      intent: "run_readiness_scan",
+      repo_include_list: repoIncludeList,
+      connector_id: connectorId,
+    },
+  })
 
   const {
     messages,
@@ -45,14 +66,7 @@ export function ScanChat({ connectorId, repoIncludeList }: ScanChatProps) {
     status,
     append,
     error,
-  } = useScanStream({
-    api: "/api/chat",
-    body: {
-      intent: "run_readiness_scan",
-      repo_include_list: repoIncludeList,
-      connector_id: connectorId,
-    },
-  })
+  } = stream ?? ownStream
 
   const isStreaming = status === "submitted" || status === "streaming"
 

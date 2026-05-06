@@ -20,7 +20,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { ConnectorCard } from "@/components/connector-card"
 import { RepoList } from "@/components/repo-list"
-import { ScanChat } from "@/components/scan-chat"
+import { ScanWorkspace } from "@/components/scan-workspace"
 import { ControlPostureGrid } from "@/components/control-posture-grid"
 import { PendingActions } from "@/components/pending-actions"
 import { getMeData } from "@/lib/me"
@@ -110,30 +110,31 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Control posture grid — chunk 4.6.
-          Sprint 4: passes empty assessments (shows "No scan run yet" empty
-          state). Sprint 5 wires live ControlAssessments from the SSE stream. */}
-      <section aria-label="SOC 2 TSC control posture">
-        <h2 className="mb-4 text-lg font-semibold">Control Posture</h2>
-        <ControlPostureGrid assessments={[]} />
-      </section>
+      {/* Sprint 5 chunks 5.8 + 5.23 — Control Posture grid, Pending
+          Actions, and Readiness Scan chat all share one ``useScanStream``
+          hook lifted into <ScanWorkspace>. When the orchestrator emits
+          data-control-map / data-evidence-rows chunks the grid + evidence
+          cards re-render from the same source as the chat reply.
 
-      {/* Pending Actions queue — chunk 4.7. US-007.
-          PendingActions is a client island; it fetches /api/actions on mount. */}
-      <section aria-label="Pending actions">
-        <h2 className="mb-4 text-lg font-semibold">Pending Actions</h2>
-        <PendingActions />
-      </section>
-
-      {/* Readiness scan chat — chunks 4.1, 4.2.
-          Rendered whenever a connector exists (connected or error state) so
-          the user can still ask free-form questions. When scope is empty the
-          ScanChat island shows the disabled state + scope CTA. */}
-      {githubConnector && (
-        <ScanChat
+          When no GitHub connector is connected, fall back to the static
+          empty-state grid + self-fetching pending actions so the page
+          still renders the connector CTA above. */}
+      {githubConnector ? (
+        <ScanWorkspace
           connectorId={githubConnector.id}
           repoIncludeList={scopedRepoIds}
         />
+      ) : (
+        <>
+          <section aria-label="SOC 2 TSC control posture">
+            <h2 className="mb-4 text-lg font-semibold">Control Posture</h2>
+            <ControlPostureGrid assessments={[]} />
+          </section>
+          <section aria-label="Pending actions">
+            <h2 className="mb-4 text-lg font-semibold">Pending Actions</h2>
+            <PendingActions />
+          </section>
+        </>
       )}
     </div>
   )

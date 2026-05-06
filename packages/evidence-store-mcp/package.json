@@ -1,0 +1,11 @@
+{
+  "name": "@auditpilot/evidence-store-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for AuditPilot evidence store (Python). Published to PyPI; this package.json is a workspace placeholder only.",
+  "license": "Apache-2.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Python package — no JS build'",
+    "test": "pytest"
+  }
+}

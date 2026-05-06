@@ -126,6 +126,33 @@ class FinishChunk(_BaseChunk):
     messageMetadata: dict[str, Any] | None = None
 
 
+class DataControlMapChunk(_BaseChunk):
+    """AI SDK 6 typed-data chunk surfacing the live ``state.control_map``.
+
+    The frontend ``useScanStream`` hook captures these and lifts them out
+    of the message stream so the dashboard's ``<ControlPostureGrid>`` can
+    re-render with the live TSC clauses (Sprint 5 chunks 5.8 / 5.23).
+    """
+
+    type: Literal["data-control-map"] = "data-control-map"
+    id: str
+    # Each entry is the JSON shape of ``apps.api.state.ControlAssessment``.
+    data: list[dict[str, Any]]
+
+
+class DataEvidenceRowsChunk(_BaseChunk):
+    """AI SDK 6 typed-data chunk surfacing the live ``state.evidence`` list.
+
+    The frontend turns these into the ``evidenceMap`` prop on
+    ``<ControlPostureGrid>`` so clicking a TSC chip shows the GitHub
+    evidence rows that drove the assessment.
+    """
+
+    type: Literal["data-evidence-rows"] = "data-evidence-rows"
+    id: str
+    data: list[dict[str, Any]]
+
+
 def sse_encode(chunk: _BaseChunk) -> str:
     """Serialise a chunk to its SSE wire-format line.
 
@@ -183,12 +210,43 @@ async def ui_message_stream_from_graph_updates(
     emitted_message_ids: set[str] = set()
     # Map tool_call_id -> toolName so we can pair the delayed ToolMessage.
     pending_tool_calls: dict[str, str] = {}
+    # Sprint 5 chunks 5.8 / 5.23 — track whether we've already emitted the
+    # control_map / evidence data parts so the same payload is not echoed
+    # for every downstream node update. Re-emit only when the state changes.
+    last_control_map_payload: list[dict[str, Any]] | None = None
+    last_evidence_payload: list[dict[str, Any]] | None = None
 
     try:
         async for node_to_update in graph.astream(
             input, config=config, stream_mode="updates"
         ):
             for _node_name, update in node_to_update.items():
+                # Sprint 5 — surface live state to the frontend as data parts.
+                control_map_payload = _extract_control_map(update)
+                if (
+                    control_map_payload is not None
+                    and control_map_payload != last_control_map_payload
+                ):
+                    last_control_map_payload = control_map_payload
+                    yield sse_encode(
+                        DataControlMapChunk(
+                            id=f"cm_{uuid.uuid4().hex}",
+                            data=control_map_payload,
+                        )
+                    )
+                evidence_payload = _extract_evidence(update)
+                if (
+                    evidence_payload is not None
+                    and evidence_payload != last_evidence_payload
+                ):
+                    last_evidence_payload = evidence_payload
+                    yield sse_encode(
+                        DataEvidenceRowsChunk(
+                            id=f"ev_{uuid.uuid4().hex}",
+                            data=evidence_payload,
+                        )
+                    )
+
                 messages = _extract_messages(update)
                 for msg in messages:
                     msg_id = _stable_id(msg)
@@ -254,6 +312,58 @@ async def ui_message_stream_from_graph_updates(
     yield SSE_DONE
 
 
+def _extract_control_map(update: Any) -> list[dict[str, Any]] | None:
+    """Pull a serialised ``state.control_map`` out of a node update.
+
+    Returns the list of ControlAssessment dicts (one per TSC clause) when
+    the node update wrote a non-empty ``control_map``; ``None`` otherwise.
+    """
+
+    if not update or not isinstance(update, dict):
+        return None
+    cm = update.get("control_map")
+    if not cm or not isinstance(cm, dict):
+        return None
+    rows: list[dict[str, Any]] = []
+    for tsc_id, assessment in cm.items():
+        if hasattr(assessment, "model_dump"):
+            rows.append(assessment.model_dump(mode="json"))
+        elif isinstance(assessment, dict):
+            rows.append(assessment)
+        else:
+            # Skip unknown shapes rather than crash the stream.
+            continue
+        # Ensure tsc_id round-trips even when the dict was keyed by it
+        # but the inner model field is absent (defensive).
+        rows[-1].setdefault("tsc_id", tsc_id)
+    return rows
+
+
+def _extract_evidence(update: Any) -> list[dict[str, Any]] | None:
+    """Pull a serialised ``state.evidence`` list out of a node update.
+
+    Returns the list of Evidence dicts when present; ``None`` otherwise.
+    Strips the heavy ``raw`` payload's nested objects to bound the SSE
+    chunk size — the frontend renders a flattened preview anyway.
+    """
+
+    if not update or not isinstance(update, dict):
+        return None
+    ev = update.get("evidence")
+    if not ev or not isinstance(ev, list):
+        return None
+    rows: list[dict[str, Any]] = []
+    for item in ev:
+        if hasattr(item, "model_dump"):
+            row = item.model_dump(mode="json")
+        elif isinstance(item, dict):
+            row = dict(item)
+        else:
+            continue
+        rows.append(row)
+    return rows
+
+
 def _extract_messages(update: Any) -> list[BaseMessage]:
     """Normalise a LangGraph node update into a list of `BaseMessage`.
 
@@ -283,6 +393,8 @@ __all__ = [
     "AI_SDK_V6_HEADER",
     "AI_SDK_V6_VERSION",
     "AbortChunk",
+    "DataControlMapChunk",
+    "DataEvidenceRowsChunk",
     "ErrorChunk",
     "FinishChunk",
     "FinishStepChunk",

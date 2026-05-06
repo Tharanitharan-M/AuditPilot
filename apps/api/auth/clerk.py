@@ -38,7 +38,9 @@ from apps.api.config import Settings
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
-_bearer = HTTPBearer(auto_error=True)
+# auto_error=False so we can raise 401 (RFC 9110 §15.5.2) instead of
+# the FastAPI default 403 when the Authorization header is missing.
+_bearer = HTTPBearer(auto_error=False)
 
 
 class ClerkUser(BaseModel):
@@ -118,14 +120,20 @@ async def _verify_token_thread(
 
 
 async def verify_clerk_token(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     settings: Settings = Depends(lambda: Settings()),
 ) -> ClerkUser:
     """FastAPI dependency: verify Clerk JWT, return typed ClerkUser.
 
-    Raises HTTP 401 on any verification failure. Intentionally vague error
-    messages to avoid leaking JWT internals to callers.
+    Raises HTTP 401 on any verification failure (including missing header).
+    Intentionally vague error messages to avoid leaking JWT internals to callers.
     """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     token = credentials.credentials
 
     with tracer.start_as_current_span("auth.verify_clerk_token") as span:

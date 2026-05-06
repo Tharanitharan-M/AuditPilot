@@ -65,6 +65,30 @@ export type ScanMessage = {
 
 export type ScanStatus = "idle" | "submitted" | "streaming" | "error"
 
+// Sprint 5 chunks 5.8 / 5.23 — typed-data part shapes flowing from the
+// FastAPI SSE bridge (see ``apps/api/sse/ai_sdk_v6.py``: DataControlMapChunk
+// and DataEvidenceRowsChunk). Kept as a thin alias of the runtime JSON shape
+// so the dashboard wires straight through to ``<ControlPostureGrid>`` and
+// ``<EvidenceCards>`` without an adapter layer.
+export type StreamControlAssessment = {
+  tsc_id: string
+  status: "passing" | "failing" | "partial" | "unknown"
+  confidence: number
+  nist_800_53_refs: string[]
+  evidence_ids: string[]
+  rationale: string | null
+}
+
+export type StreamEvidenceRow = {
+  id: string
+  source_type: "github" | "clerk" | "manual" | "mock"
+  source_uri: string | null
+  raw: Record<string, unknown>
+  content_hash: string | null
+  collected_at: string
+  scan_run_id: string | null
+}
+
 export interface UseScanStreamOptions {
   /** POST endpoint. Defaults to "/api/chat". */
   api?: string
@@ -82,6 +106,10 @@ export interface UseScanStreamReturn {
   error: Error | null
   /** Cancel the in-flight stream (no-op when idle). */
   stop: () => void
+  /** Sprint 5 — live ControlAssessment[] from the most recent scan turn. */
+  controlMap: StreamControlAssessment[]
+  /** Sprint 5 — live Evidence rows from the most recent scan turn. */
+  evidenceRows: StreamEvidenceRow[]
 }
 
 // ── SSE chunk types we consume ──────────────────────────────────────────────
@@ -108,6 +136,9 @@ type SseChunk =
     }
   | { type: "error"; errorText: string }
   | { type: "abort"; reason?: string }
+  // Sprint 5 typed-data chunks emitted by ``apps/api/sse/ai_sdk_v6.py``.
+  | { type: "data-control-map"; id: string; data: StreamControlAssessment[] }
+  | { type: "data-evidence-rows"; id: string; data: StreamEvidenceRow[] }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -127,6 +158,11 @@ export function useScanStream(
   const [input, setInput] = useState("")
   const [status, setStatus] = useState<ScanStatus>("idle")
   const [error, setError] = useState<Error | null>(null)
+  // Sprint 5 — live state lifted out of the message stream so siblings of
+  // ScanChat (the Control Posture grid, Evidence cards) can render the
+  // current scan without re-parsing the chat transcript.
+  const [controlMap, setControlMap] = useState<StreamControlAssessment[]>([])
+  const [evidenceRows, setEvidenceRows] = useState<StreamEvidenceRow[]>([])
   const abortRef = useRef<AbortController | null>(null)
 
   const handleInputChange = useCallback(
@@ -152,6 +188,11 @@ export function useScanStream(
       const controller = new AbortController()
       abortRef.current?.abort()
       abortRef.current = controller
+
+      // Sprint 5 — clear stale streamed data so a re-scan does not flash
+      // the previous run's grid/evidence while the new stream warms up.
+      setControlMap([])
+      setEvidenceRows([])
 
       // Optimistically push the user turn into the transcript.
       const userMsg: ScanMessage = {
@@ -250,6 +291,17 @@ export function useScanStream(
               } catch {
                 continue
               }
+              // Sprint 5 — typed-data parts are siblings of message parts;
+              // hoist them into their own state slots and skip the message
+              // mutator so they don't accidentally land in the transcript.
+              if (parsed.type === "data-control-map") {
+                setControlMap(parsed.data)
+                continue
+              }
+              if (parsed.type === "data-evidence-rows") {
+                setEvidenceRows(parsed.data)
+                continue
+              }
               applyChunk(setMessages, assistantId, parsed)
               if (parsed.type === "error") {
                 setError(new Error(parsed.errorText))
@@ -318,6 +370,8 @@ export function useScanStream(
     status,
     error,
     stop,
+    controlMap,
+    evidenceRows,
   }
 }
 
