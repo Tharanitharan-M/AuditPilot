@@ -55,6 +55,7 @@ jobs:
       - name: Test — apps/api
         if: hashFiles('apps/api/tests/**') != ''
         run: |
+          uv pip install --system -e packages/compliance-kb-mcp
           cd apps/api
           uv pip install --system -e ".[dev]"
           pytest tests/ --tb=short -q
