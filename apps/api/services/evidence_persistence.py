@@ -34,11 +34,77 @@ from typing import Any
 
 import httpx
 from opentelemetry import trace
+from pgvector.psycopg import register_vector_async
 
 from apps.api.state import Evidence
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+
+# Sprint 5 chunk 5.14 — typed pgvector adapter.
+#
+# Previous implementation built a string literal via
+# ``f"[{','.join(str(float(v)) for v in embedding)}]"`` and bound it as
+# a regular text parameter cast with ``%s::vector``. The ``float()``
+# coercion guarded against malformed Gemini responses, but the wire
+# encoding still went through psycopg's text path — a single ``inf`` or
+# ``nan`` would land on the server as the strings ``"inf"`` / ``"nan"``
+# and pgvector would reject the INSERT mid-batch.
+#
+# ``register_vector_async(conn)`` registers psycopg type adapters that
+# serialise ``list[float]`` and ``numpy.ndarray`` directly as the
+# pgvector wire type. The bind is fully typed, the SQL is parameterised
+# end to end, and the explicit ``::vector`` cast disappears from the
+# call sites.
+#
+# Registration state is per-process. ``_registered_conns`` is a WeakSet
+# of connections we have already registered on (so we don't repeat the
+# work on every checkout of a long-lived pool member).
+# ``_adapter_disabled`` is a circuit breaker: if the first registration
+# attempt fails (e.g. pgvector extension not loaded on the target
+# schema, or psycopg version mismatch), the flag stays False forever
+# and every subsequent call short-circuits to a NULL embedding instead
+# of hammering the DB with failing registration attempts (python-
+# reviewer F1) or binding a raw list[float] that has no registered
+# pgvector adapter and would crash mid-INSERT (python-reviewer F2).
+import weakref
+
+_registered_conns: weakref.WeakSet[Any] = weakref.WeakSet()
+_adapter_disabled: bool = False
+
+
+async def _ensure_vector_adapter(conn: Any) -> bool:
+    """Register the pgvector psycopg adapter on this connection.
+
+    Returns True when the adapter is registered (caller may bind
+    ``list[float]`` directly); False when the adapter could not be
+    registered and the caller MUST coerce embedding parameters to
+    ``None`` before binding (otherwise psycopg raises
+    ``ProgrammingError: can't adapt type 'list'``).
+
+    On the first failure, ``_adapter_disabled`` flips to True and every
+    subsequent call returns False without touching the DB — closes the
+    retry-storm hazard from python-reviewer F1.
+    """
+
+    global _adapter_disabled
+    if _adapter_disabled:
+        return False
+    if conn in _registered_conns:
+        return True
+    try:
+        await register_vector_async(conn)
+        _registered_conns.add(conn)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        _adapter_disabled = True
+        logger.warning(
+            "pgvector.adapter.register_failed type=%s — adapter disabled "
+            "process-wide; embeddings will be stored as NULL until restart",
+            type(exc).__name__,
+        )
+        return False
 
 # Gemini text-embedding-004 endpoint. Pinned to the v1 stable surface so the
 # embedding dimensionality (768) matches the vector column width set in
@@ -219,20 +285,25 @@ async def persist_evidence(
         # Upsert rows.
         inserted = 0
         async with pool.connection() as conn:
+            # Sprint 5 chunk 5.14 — register the pgvector adapter so the
+            # ``embedding`` parameter binds as a typed vector via psycopg
+            # rather than as a text literal cast in SQL.
+            adapter_ok = await _ensure_vector_adapter(conn)
             await conn.execute(
                 "SELECT set_config('app.current_user_id', %s, true)",
                 (uid,),
             )
             for ev, embedding in zip(evidence_list, embeddings, strict=False):
                 raw_json = json.dumps(ev.raw)
-                # Coerce to float list and build the pgvector literal.
-                # The explicit float() cast guards against a malicious or
-                # malformed Gemini response returning non-float values that
-                # could escape the parameterized bind as raw SQL fragments.
-                embedding_literal = (
-                    f"[{','.join(str(float(v)) for v in embedding)}]"
-                    if embedding
-                    else None
+
+                # ``_generate_embedding`` already returns ``list[float] | None``;
+                # we pass it straight through when the adapter is registered.
+                # When the adapter is disabled (python-reviewer F2), bind
+                # NULL instead of a raw ``list[float]`` — psycopg has no
+                # type adapter for ``list`` and would raise
+                # ``ProgrammingError: can't adapt type 'list'`` mid-INSERT.
+                embedding_typed: list[float] | None = (
+                    embedding if (adapter_ok and embedding is not None) else None
                 )
 
                 result = await conn.execute(
@@ -242,7 +313,7 @@ async def persist_evidence(
                          raw, content_hash, embedding, collected_at, valid_until)
                     VALUES
                         (gen_random_uuid(), %s, %s, %s, %s,
-                         %s::jsonb, %s, %s::vector, %s, %s)
+                         %s::jsonb, %s, %s, %s, %s)
                     ON CONFLICT (user_id, content_hash) DO NOTHING
                     """,
                     (
@@ -252,7 +323,7 @@ async def persist_evidence(
                         ev.source_uri,
                         raw_json,
                         ev.content_hash,
-                        embedding_literal,
+                        embedding_typed,
                         ev.collected_at,
                         ev.valid_until,
                     ),

@@ -15,10 +15,12 @@ Refs: PLAN.md Sprint 5 chunks 5.10–5.11; ADR-0008 (Neon Postgres + pgvector).
 from __future__ import annotations
 
 import logging
+import weakref
 from typing import Any
 
 import httpx
 from opentelemetry import trace
+from pgvector.psycopg import register_vector_async
 
 from evidence_store_mcp.schemas import (
     EvidenceRow,
@@ -35,6 +37,42 @@ from evidence_store_mcp.schemas import (
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+# Sprint 5 chunk 5.14 — pgvector adapter cache.
+# Registers psycopg type adapters once per connection so query embedding
+# vectors bind as typed pgvector parameters rather than text literals.
+# ``_adapter_disabled`` is a circuit breaker: a failed first registration
+# (e.g. pgvector extension not loaded, psycopg version mismatch) flips
+# the flag forever and forces every subsequent call to fall back to the
+# BM25-only path instead of hammering the DB or binding a raw list[float]
+# that psycopg cannot adapt without the extension (python-reviewer F1, F2).
+_registered_conns: weakref.WeakSet[Any] = weakref.WeakSet()
+_adapter_disabled: bool = False
+
+
+async def _ensure_vector_adapter(conn: Any) -> bool:
+    """Register the pgvector psycopg adapter; return True on success.
+
+    On failure, flips ``_adapter_disabled`` so future calls short-circuit
+    and the caller falls back to BM25 search (no vector branch).
+    """
+    global _adapter_disabled
+    if _adapter_disabled:
+        return False
+    if conn in _registered_conns:
+        return True
+    try:
+        await register_vector_async(conn)
+        _registered_conns.add(conn)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        _adapter_disabled = True
+        logger.warning(
+            "pgvector.adapter.register_failed type=%s — adapter disabled "
+            "process-wide; search_evidence will fall back to BM25 only",
+            type(exc).__name__,
+        )
+        return False
 
 # gemini-embedding-001 is the current stable Gemini embedding model
 # (text-embedding-004 was retired). Default output is 3072 dim; we request
@@ -120,37 +158,45 @@ async def search_evidence(
         query_mode = "bm25"
 
         async with pool.connection() as conn:
+            # Sprint 5 chunk 5.14 — typed pgvector adapter on this connection.
+            # All vector parameters below bind as native pgvector values
+            # rather than ``%s::vector`` text literals. When registration
+            # fails (extension absent / SDK mismatch), the helper flips a
+            # process-wide flag and we skip the vector branch entirely
+            # (BM25-only search) instead of crashing the bind.
+            adapter_ok = await _ensure_vector_adapter(conn)
             await _set_rls(conn, uid)
 
             # ── Vector branch ──────────────────────────────────────────────
-            if gemini_api_key:
+            if adapter_ok and gemini_api_key:
                 embedding = await _embed_query(inp.query, gemini_api_key)
                 if embedding:
-                    # Explicit float() cast guards against malformed Gemini responses.
-                    vec_literal = f"[{','.join(str(float(v)) for v in embedding)}]"
-                    result = await conn.execute(
-                        """
-                        SELECT id, source_type, source_uri, raw, content_hash,
-                               collected_at, scan_run_id,
-                               1 - (embedding <=> %s::vector) AS similarity
-                        FROM   evidence
-                        WHERE  user_id = %s
-                          AND  embedding IS NOT NULL
-                          AND  1 - (embedding <=> %s::vector) >= %s
-                          AND  (%s::text IS NULL OR source_type = %s)
-                        ORDER  BY embedding <=> %s::vector
-                        LIMIT  %s
-                        """,
-                        [
-                            vec_literal, uid, vec_literal, inp.similarity_threshold,
-                            inp.source_type, inp.source_type,
-                            vec_literal, inp.limit,
-                        ],
-                    )
-                    async for row in result:
-                        rows.append(_row_to_model(row, has_similarity=True))
-                    if rows:
-                        query_mode = "vector"
+                    # _embed_query already returns list[float] | None.
+                    vec: list[float] | None = embedding
+                    if vec is not None:
+                        result = await conn.execute(
+                            """
+                            SELECT id, source_type, source_uri, raw, content_hash,
+                                   collected_at, scan_run_id,
+                                   1 - (embedding <=> %s) AS similarity
+                            FROM   evidence
+                            WHERE  user_id = %s
+                              AND  embedding IS NOT NULL
+                              AND  1 - (embedding <=> %s) >= %s
+                              AND  (%s::text IS NULL OR source_type = %s)
+                            ORDER  BY embedding <=> %s
+                            LIMIT  %s
+                            """,
+                            [
+                                vec, uid, vec, inp.similarity_threshold,
+                                inp.source_type, inp.source_type,
+                                vec, inp.limit,
+                            ],
+                        )
+                        async for row in result:
+                            rows.append(_row_to_model(row, has_similarity=True))
+                        if rows:
+                            query_mode = "vector"
 
             # ── BM25 branch (supplement or fallback) ──────────────────────
             if len(rows) < inp.limit:
