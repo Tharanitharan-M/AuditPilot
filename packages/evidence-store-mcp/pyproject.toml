@@ -44,7 +44,8 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "ANN", "BLE001"]
-ignore = ["ANN101", "ANN102"]
+# ANN101 / ANN102 were removed from ruff (self/cls now inferred).
+ignore = []
 
 [tool.mypy]
 python_version = "3.11"

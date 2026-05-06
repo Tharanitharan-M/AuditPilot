@@ -21,6 +21,8 @@ from typing import Any
 import httpx
 from opentelemetry import trace
 from pgvector.psycopg import register_vector_async
+from psycopg import AsyncConnection
+from psycopg_pool import AsyncConnectionPool
 
 from evidence_store_mcp.schemas import (
     EvidenceRow,
@@ -50,7 +52,7 @@ _registered_conns: weakref.WeakSet[Any] = weakref.WeakSet()
 _adapter_disabled: bool = False
 
 
-async def _ensure_vector_adapter(conn: Any) -> bool:
+async def _ensure_vector_adapter(conn: AsyncConnection) -> bool:
     """Register the pgvector psycopg adapter; return True on success.
 
     On failure, flips ``_adapter_disabled`` so future calls short-circuit
@@ -123,7 +125,7 @@ def _require_user_id(user_id: str | None) -> str:
     return user_id
 
 
-async def _set_rls(conn: Any, user_id: str) -> None:
+async def _set_rls(conn: AsyncConnection, user_id: str) -> None:
     await conn.execute(
         "SELECT set_config('app.current_user_id', %s, true)",
         (user_id,),
@@ -135,7 +137,7 @@ async def _set_rls(conn: Any, user_id: str) -> None:
 
 async def search_evidence(
     inp: SearchEvidenceInput,
-    pool: Any,
+    pool: AsyncConnectionPool,
     *,
     gemini_api_key: str | None = None,
 ) -> SearchEvidenceOutput:
@@ -235,7 +237,7 @@ async def search_evidence(
 
 async def get_evidence_by_hash(
     inp: GetEvidenceByHashInput,
-    pool: Any,
+    pool: AsyncConnectionPool,
 ) -> GetEvidenceByHashOutput:
     """Exact lookup by SHA-256 content_hash. Used as cache key by map_controls."""
     uid = _require_user_id(inp.user_id)
@@ -269,7 +271,7 @@ async def get_evidence_by_hash(
 
 async def list_evidence_by_source(
     inp: ListEvidenceBySourceInput,
-    pool: Any,
+    pool: AsyncConnectionPool,
 ) -> ListEvidenceBySourceOutput:
     """Return the most-recent evidence rows, optionally filtered by source.
 
@@ -312,7 +314,7 @@ async def list_evidence_by_source(
 
 async def list_scan_runs(
     inp: ListScanRunsInput,
-    pool: Any,
+    pool: AsyncConnectionPool,
 ) -> ListScanRunsOutput:
     """Return the most-recent scan runs for a user with evidence counts."""
     uid = _require_user_id(inp.user_id)
@@ -358,7 +360,11 @@ async def list_scan_runs(
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _row_to_model(row: Any, *, has_similarity: bool) -> EvidenceRow:
+def _row_to_model(
+    row: Any,  # noqa: ANN401 — psycopg cursor row is a positional tuple with no public stub type
+    *,
+    has_similarity: bool,
+) -> EvidenceRow:
     return EvidenceRow(
         id=str(row[0]),
         source_type=row[1],

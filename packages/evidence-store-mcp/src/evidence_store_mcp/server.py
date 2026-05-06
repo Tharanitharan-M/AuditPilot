@@ -15,9 +15,8 @@ import logging
 from typing import Any
 
 from mcp.server import Server
-from mcp.server.models import InitializationOptions
 from mcp.shared.exceptions import McpError
-from mcp.types import INVALID_PARAMS, METHOD_NOT_FOUND, TextContent, Tool
+from mcp.types import METHOD_NOT_FOUND, TextContent, Tool
 from psycopg_pool import AsyncConnectionPool
 
 from evidence_store_mcp import __version__

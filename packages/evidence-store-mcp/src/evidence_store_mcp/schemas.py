@@ -50,7 +50,10 @@ class SearchEvidenceInput(BaseModel):
         default=0.5,
         ge=0.0,
         le=1.0,
-        description="Minimum cosine similarity (0–1) for vector matches. Ignored when the row has no embedding.",
+        description=(
+            "Minimum cosine similarity (0–1) for vector matches. "
+            "Ignored when the row has no embedding."
+        ),
     )
 
 

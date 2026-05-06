@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,13 +22,13 @@ from evidence_store_mcp.tools import (
 )
 
 
-def _make_pool(rows: list[tuple[Any, ...]]) -> Any:
+def _make_pool(rows: list[tuple[Any, ...]]) -> Any:  # noqa: ANN401 — MagicMock stub stands in for psycopg AsyncConnectionPool in tests
     """Build a minimal async pool mock that returns `rows` from every execute."""
     conn = AsyncMock()
     conn.execute = AsyncMock()
     cursor = MagicMock()
 
-    async def _aiter(_self: Any) -> Any:
+    async def _aiter(_self: Any) -> Any:  # noqa: ANN401 — async-iterator protocol stub
         for row in rows:
             yield row
 
