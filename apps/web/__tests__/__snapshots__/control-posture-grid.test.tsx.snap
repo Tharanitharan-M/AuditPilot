@@ -1,0 +1,257 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ControlPostureGrid > matches snapshot with representative fixture (all 4 statuses, 3 categories) 1`] = `
+<div>
+  <div
+    aria-label="SOC 2 TSC control posture grid"
+    class="space-y-6"
+    data-testid="control-posture-grid"
+  >
+    <section
+      aria-label="CC — Common Criteria"
+    >
+      <div
+        class="group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
+        data-size="default"
+        data-slot="card"
+      >
+        <div
+          class="group/card-header @container/card-header grid auto-rows-min items-start gap-1 rounded-t-xl px-4 group-data-[size=sm]/card:px-3 has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-4 group-data-[size=sm]/card:[.border-b]:pb-3"
+          data-slot="card-header"
+        >
+          <div
+            class="font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm"
+            data-slot="card-title"
+          >
+            CC — Common Criteria
+          </div>
+        </div>
+        <div
+          class="px-4 group-data-[size=sm]/card:px-3 space-y-4"
+          data-slot="card-content"
+        >
+          <div
+            data-testid="control-row-CC6"
+          >
+            <div
+              class="flex flex-wrap items-center gap-2"
+            >
+              <span
+                class="min-w-[3rem] text-xs font-semibold text-muted-foreground"
+              >
+                CC6
+              </span>
+              <button
+                aria-expanded="false"
+                aria-label="CC6.1 — passing — confidence 92%"
+                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-green-700 text-white focus-visible:ring-green-500"
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                >
+                  CC6.1
+                </span>
+                <span
+                  class="sr-only"
+                >
+                  passing
+                </span>
+                <span
+                  aria-hidden="true"
+                  class="opacity-75 text-[10px]"
+                >
+                  passing
+                </span>
+              </button>
+              <button
+                aria-expanded="false"
+                aria-label="CC6.2 — failing — confidence 21%"
+                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-red-700 text-white focus-visible:ring-red-500"
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                >
+                  CC6.2
+                </span>
+                <span
+                  class="sr-only"
+                >
+                  failing
+                </span>
+                <span
+                  aria-hidden="true"
+                  class="opacity-75 text-[10px]"
+                >
+                  failing
+                </span>
+              </button>
+            </div>
+          </div>
+          <div
+            data-testid="control-row-CC7"
+          >
+            <div
+              class="flex flex-wrap items-center gap-2"
+            >
+              <span
+                class="min-w-[3rem] text-xs font-semibold text-muted-foreground"
+              >
+                CC7
+              </span>
+              <button
+                aria-expanded="false"
+                aria-label="CC7.1 — partial — confidence 55%"
+                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-amber-600 text-black focus-visible:ring-amber-500"
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                >
+                  CC7.1
+                </span>
+                <span
+                  class="sr-only"
+                >
+                  partial
+                </span>
+                <span
+                  aria-hidden="true"
+                  class="opacity-75 text-[10px]"
+                >
+                  partial
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section
+      aria-label="A — Availability"
+    >
+      <div
+        class="group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
+        data-size="default"
+        data-slot="card"
+      >
+        <div
+          class="group/card-header @container/card-header grid auto-rows-min items-start gap-1 rounded-t-xl px-4 group-data-[size=sm]/card:px-3 has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-4 group-data-[size=sm]/card:[.border-b]:pb-3"
+          data-slot="card-header"
+        >
+          <div
+            class="font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm"
+            data-slot="card-title"
+          >
+            A — Availability
+          </div>
+        </div>
+        <div
+          class="px-4 group-data-[size=sm]/card:px-3 space-y-4"
+          data-slot="card-content"
+        >
+          <div
+            data-testid="control-row-A1"
+          >
+            <div
+              class="flex flex-wrap items-center gap-2"
+            >
+              <span
+                class="min-w-[3rem] text-xs font-semibold text-muted-foreground"
+              >
+                A1
+              </span>
+              <button
+                aria-expanded="false"
+                aria-label="A1.1 — unknown — confidence 0%"
+                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-zinc-300 text-zinc-900 focus-visible:ring-zinc-400"
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                >
+                  A1.1
+                </span>
+                <span
+                  class="sr-only"
+                >
+                  unknown
+                </span>
+                <span
+                  aria-hidden="true"
+                  class="opacity-75 text-[10px]"
+                >
+                  unknown
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section
+      aria-label="PI — Processing Integrity"
+    >
+      <div
+        class="group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
+        data-size="default"
+        data-slot="card"
+      >
+        <div
+          class="group/card-header @container/card-header grid auto-rows-min items-start gap-1 rounded-t-xl px-4 group-data-[size=sm]/card:px-3 has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-4 group-data-[size=sm]/card:[.border-b]:pb-3"
+          data-slot="card-header"
+        >
+          <div
+            class="font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm"
+            data-slot="card-title"
+          >
+            PI — Processing Integrity
+          </div>
+        </div>
+        <div
+          class="px-4 group-data-[size=sm]/card:px-3 space-y-4"
+          data-slot="card-content"
+        >
+          <div
+            data-testid="control-row-PI1"
+          >
+            <div
+              class="flex flex-wrap items-center gap-2"
+            >
+              <span
+                class="min-w-[3rem] text-xs font-semibold text-muted-foreground"
+              >
+                PI1
+              </span>
+              <button
+                aria-expanded="false"
+                aria-label="PI1.2 — passing — confidence 88%"
+                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-green-700 text-white focus-visible:ring-green-500"
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                >
+                  PI1.2
+                </span>
+                <span
+                  class="sr-only"
+                >
+                  passing
+                </span>
+                <span
+                  aria-hidden="true"
+                  class="opacity-75 text-[10px]"
+                >
+                  passing
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+`;

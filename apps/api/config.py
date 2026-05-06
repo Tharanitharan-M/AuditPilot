@@ -106,6 +106,19 @@ class Settings(BaseSettings):
     )
     anthropic_api_key: SecretStr | None = None   # optional fallback
     openai_api_key: SecretStr | None = None      # optional fallback
+    # Sprint 4 chunk 4.3a — provider-agnostic model selection. Format is
+    # ``provider:model_name``. ``apps.api.agents.models.build_model`` parses
+    # this and constructs the matching Pydantic AI Provider with the API key
+    # threaded explicitly from this Settings instance. Operators flip
+    # providers without touching code: change one ``.env`` line.
+    orchestrator_model: str = Field(
+        default="google-gla:gemini-2.5-flash-lite",
+        description=(
+            "Pydantic AI model identifier in 'provider:model_name' form. "
+            "Supported providers: google-gla, anthropic, openai. "
+            "Example: 'google-gla:gemini-2.5-flash-lite'."
+        ),
+    )
     llm_budget_cap_usd: float = Field(
         default=0.50,
         description="Per-session LLM cost cap in USD (AdversarialAuditor hard limit).",

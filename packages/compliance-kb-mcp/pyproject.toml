@@ -1,7 +1,7 @@
 [project]
 name = "compliance-kb-mcp"
 version = "0.2.0"
-description = "NIST SP 800-53 Rev 5 knowledge-base MCP server with SOC 2 TSC mappings and BM25 search."
+description = "NIST SP 800-53 Rev 5 knowledge-base MCP server (324 controls) with SOC 2 TSC mappings and BM25 search."
 license = { text = "Apache-2.0" }
 authors = [{ name = "Tharanitharan M", email = "tharanimtharan@gmail.com" }]
 readme = "README.md"
@@ -48,6 +48,12 @@ Repository = "https://github.com/Tharanitharan-M/auditpilot"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+  ".gitignore",
+  "PUBLISH.md",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/compliance_kb_mcp"]

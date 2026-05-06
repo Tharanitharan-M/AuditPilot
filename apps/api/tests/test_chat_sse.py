@@ -85,20 +85,27 @@ def lookup_then_reply_model():
 async def client(lookup_then_reply_model):
     """Async HTTP client with the /chat route wired to a FunctionModel.
 
-    We monkeypatch `_chat_model_factory` so the endpoint uses our stub model,
-    avoiding any LLM network dependency.
+    We monkeypatch ``_chat_model_factory`` so the endpoint uses our stub
+    model, avoiding any LLM network dependency. Sprint 4 chunk 4.3 also
+    flips ``_chat_mcp_toolset`` to ``False`` so the test path does not
+    fork the ``compliance-kb-mcp`` subprocess on every request — the
+    Sprint-2 FunctionModel emits ToolCallParts directly, so the toolset
+    is irrelevant to the SSE wire-format assertions in this file.
     """
 
     from apps.api import main as main_module
 
-    original = main_module._chat_model_factory
+    original_model = main_module._chat_model_factory
+    original_mcp = main_module._chat_mcp_toolset
     main_module._chat_model_factory = lambda: lookup_then_reply_model
+    main_module._chat_mcp_toolset = lambda: False
     try:
         transport = ASGITransport(app=main_module.app, raise_app_exceptions=False)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
     finally:
-        main_module._chat_model_factory = original
+        main_module._chat_model_factory = original_model
+        main_module._chat_mcp_toolset = original_mcp
 
 
 async def _consume_sse_stream(client: AsyncClient, body: dict) -> tuple[dict, list[str]]:

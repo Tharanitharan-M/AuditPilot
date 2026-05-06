@@ -51,7 +51,10 @@ def chat_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     # the test does not depend on Gemini, Langfuse, Postgres, or Redis. The
     # rate-limit decorator runs BEFORE the route body, so swapping the body
     # does not weaken the test — the 429 is produced inside the decorator.
-    async def _passthrough_stream(*, req, thread_id):  # type: ignore[no-untyped-def]
+    async def _passthrough_stream(*, req, thread_id, **kwargs):  # type: ignore[no-untyped-def]
+        # Sprint 4 chunk 4.9 added a ``request`` kwarg + a poll-interval
+        # kwarg to ``_chat_stream_generator``. Accept arbitrary kwargs
+        # so this stub stays forward-compatible with future additions.
         yield 'data: {"type":"finish"}\n\n'
         yield "data: [DONE]\n\n"
 

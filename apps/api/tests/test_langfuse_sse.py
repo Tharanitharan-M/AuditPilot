@@ -101,7 +101,11 @@ async def client(lookup_then_reply_model, fake_langfuse_client):
     from apps.api.observability import langfuse as lf_module
 
     original_model = main_module._chat_model_factory
+    original_mcp = main_module._chat_mcp_toolset
     main_module._chat_model_factory = lambda: lookup_then_reply_model
+    # Sprint 4 chunk 4.3 — opt out of the live MCP toolset for this
+    # FunctionModel-based test path.
+    main_module._chat_mcp_toolset = lambda: False
 
     with patch.object(lf_module, "_INITIALISED", fake_langfuse_client):
         transport = ASGITransport(
@@ -111,6 +115,7 @@ async def client(lookup_then_reply_model, fake_langfuse_client):
             yield ac
 
     main_module._chat_model_factory = original_model
+    main_module._chat_mcp_toolset = original_mcp
 
 
 async def _consume(client: AsyncClient, body: dict) -> list[dict | str]:
@@ -163,7 +168,9 @@ async def test_finish_metadata_ommits_trace_when_langfuse_disabled(
     from apps.api.observability import langfuse as lf_module
 
     original_model = main_module._chat_model_factory
+    original_mcp = main_module._chat_mcp_toolset
     main_module._chat_model_factory = lambda: lookup_then_reply_model
+    main_module._chat_mcp_toolset = lambda: False
     # Explicitly disable Langfuse
     with patch.object(lf_module, "_INITIALISED", None):
         transport = ASGITransport(
@@ -182,6 +189,7 @@ async def test_finish_metadata_ommits_trace_when_langfuse_disabled(
                 )
         finally:
             main_module._chat_model_factory = original_model
+            main_module._chat_mcp_toolset = original_mcp
 
     finish = next(
         c for c in chunks if isinstance(c, dict) and c.get("type") == "finish"

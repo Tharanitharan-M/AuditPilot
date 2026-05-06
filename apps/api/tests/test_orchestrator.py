@@ -100,7 +100,7 @@ async def test_orchestrator_invokes_lookup_control_and_merges_into_state():
 
     result = await _ainvoke_graph(model, "Look up control AC-1")
 
-    assert result["current_step"] == "orchestrator_stub_complete"
+    assert result["current_step"] == "orchestrator_complete"
     # The graph delta appends a ToolCall AIMessage, a ToolMessage return, and
     # the final assistant TextPart — three messages on top of the initial
     # HumanMessage, so 4 total.
@@ -168,6 +168,49 @@ async def test_build_orchestrator_agent_has_lookup_control_tool():
     assert "lookup_control" in names, (
         f"expected lookup_control in registered tools; got {names}"
     )
+
+
+# ─── SYSTEM_PROMPT contract — repo-state refusal (Sprint 4 polish) ──────────
+
+
+def test_system_prompt_lists_only_compliance_kb_tools() -> None:
+    """The prompt must enumerate exactly the four compliance-kb-mcp tools.
+
+    Pinning the tool list in the prompt prevents future drift where a new
+    tool gets registered on the agent but the prompt still claims those
+    are the only ones — a silent contract break.
+    """
+
+    from apps.api.agents.orchestrator import SYSTEM_PROMPT
+
+    for tool_name in (
+        "lookup_control",
+        "lookup_by_soc2_tsc",
+        "search_controls",
+        "list_controls",
+    ):
+        assert tool_name in SYSTEM_PROMPT, (
+            f"SYSTEM_PROMPT must name the {tool_name!r} tool"
+        )
+
+
+def test_system_prompt_refuses_repo_state_questions() -> None:
+    """The prompt must instruct the LLM to refuse repo-read questions.
+
+    Sprint 4 ships only the static NIST catalog tools. The orchestrator
+    has no GitHub tool wired in yet (Sprint 5 chunks 5.3-5.7). Without
+    this clause the LLM rephrases the SCAN CONTEXT block when asked
+    'can you read my repo?' — observed during Sprint-4 manual testing.
+    """
+
+    from apps.api.agents.orchestrator import SYSTEM_PROMPT
+
+    # Strong signals the refusal mode is present.
+    assert "no tool" in SYSTEM_PROMPT.lower() or "no tool that reads" in SYSTEM_PROMPT
+    assert "branch protection" in SYSTEM_PROMPT
+    assert "placeholder" in SYSTEM_PROMPT.lower()
+    # The canonical refusal example list is documented.
+    assert "is branch protection enabled" in SYSTEM_PROMPT
 
 
 # ─── Chunk 3.0b — control_id regex validator (OWASP LLM06 defence-in-depth) ──
@@ -322,7 +365,7 @@ async def test_orchestrator_proceeds_when_intent_required_scope_is_present():
     )
 
     # The LLM was called and the orchestrator turn completed normally.
-    assert result["current_step"] == "orchestrator_stub_complete"
+    assert result["current_step"] == "orchestrator_complete"
     assert "empty_repo_scope" not in result.get("rejection_reasons", [])
 
 
@@ -345,4 +388,4 @@ async def test_orchestrator_does_not_require_scope_for_free_chat():
         config={"configurable": {"thread_id": "test-free-chat"}},
     )
 
-    assert result["current_step"] == "orchestrator_stub_complete"
+    assert result["current_step"] == "orchestrator_complete"

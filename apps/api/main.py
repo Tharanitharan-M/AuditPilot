@@ -23,10 +23,12 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from posthog import Posthog
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai.models import Model
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from apps.api.agents.models import build_model
 from apps.api.agents.prompts import PromptLoader
 from apps.api.checkpointer import memory_checkpointer
 from apps.api.config import Settings
@@ -59,7 +61,7 @@ from apps.api.observability.posthog import (
     make_observability_hook,
     shutdown_posthog,
 )
-from apps.api.routes import connectors_router
+from apps.api.routes import actions_router, connectors_router
 from apps.api.sse.ai_sdk_v6 import (
     AI_SDK_V6_HEADER,
     AI_SDK_V6_VERSION,
@@ -162,10 +164,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global _redis_client, _job_queue
 
     settings = get_settings()
-    # Pydantic AI's Google/Gemini integration reads ``GOOGLE_API_KEY`` from the
-    # process environment; Settings uses ``GEMINI_API_KEY`` (ADR-0008 naming).
-    if "GOOGLE_API_KEY" not in os.environ:
-        os.environ["GOOGLE_API_KEY"] = settings.gemini_api_key.get_secret_value()
+    # Sprint 4 chunk 4.3a — the previous lifespan wrote
+    # ``settings.gemini_api_key`` into ``os.environ["GOOGLE_API_KEY"]`` so
+    # Pydantic AI's Google integration would pick it up implicitly. That is
+    # subprocess-leakage by construction: every spawned process inherits the
+    # secret. ``apps.api.agents.models.build_model`` now constructs the
+    # matching ``Provider(api_key=...)`` directly from this ``Settings``
+    # instance, so no environment write is required. Operators flip providers
+    # via ``ORCHESTRATOR_MODEL=anthropic:claude-sonnet-4-6`` in ``.env`` —
+    # zero code changes.
     _init_posthog(settings)
     init_langfuse(settings)
     init_metrics(settings)
@@ -291,6 +298,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(connectors_router)
+app.include_router(actions_router)
 
 
 @app.middleware("http")
@@ -374,6 +382,12 @@ class ChatRequest(BaseModel):
     ``messages`` is the running conversation history (AI SDK 6's `useChat`
     posts the full transcript every turn). ``thread_id`` pins the checkpoint
     row so resume-from-HITL works (Sprint 6 chunk 6.2).
+
+    Sprint 4 chunk 4.4a — ``repo_include_list`` carries the user-chosen
+    repo scope. The dashboard reads this from the picker (Sprint 3.5 chunk
+    3.5.2) before opening the /chat stream and forwards it here. The
+    orchestrator's ``validate_scope`` node refuses ``run_readiness_scan``
+    when this list is empty (ADR-0015 default-deny).
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -384,6 +398,28 @@ class ChatRequest(BaseModel):
         Literal["free_chat", "run_readiness_scan", "draft_policy", "fill_questionnaire"]
         | None
     ) = "free_chat"
+    # Sprint 4 chunk 4.4a — list of GitHub provider_repo_id strings the
+    # user has scoped on their connector. The frontend populates this
+    # from `/api/connectors/{id}/scoped-repos`. The backend trusts the
+    # list — Sprint 6 chunk 6.2 wires Clerk auth on /chat which then
+    # cross-checks against the persisted scope server-side.
+    repo_include_list: list[str] = Field(
+        default_factory=list,
+        description=(
+            "GitHub provider_repo_id strings the user has scoped on the "
+            "active connector. Required when intent='run_readiness_scan'."
+        ),
+        max_length=500,
+    )
+    connector_id: str | None = Field(
+        default=None,
+        description=(
+            "Clerk external_account.id (e.g. 'eac_*') the scan should "
+            "operate on. Sprint 4 surfaces this in trace metadata; "
+            "Sprint 6 server-side validates the scope against this id."
+        ),
+        max_length=64,
+    )
 
 
 def _flatten_content(msg: ChatMessage) -> str:
@@ -411,26 +447,49 @@ def _to_langchain_messages(body_messages: list[ChatMessage]) -> list:
 
 
 # Model injection lets tests supply FunctionModel; production uses the settings
-# + LiteLLM + PromptLoader stack (wired in chunk 2.12).
-def _default_model() -> str:
-    """Return the default Pydantic AI model string for /chat.
+# + LiteLLM + PromptLoader stack (wired in chunk 2.12). Sprint 4 chunk 4.3a:
+# the factory now returns a fully-constructed ``Model`` instance instead of a
+# string, so the provider's API key is threaded explicitly from ``Settings``
+# rather than read from the process environment.
+def _default_model() -> Model:
+    """Return the default Pydantic AI :class:`Model` for /chat.
 
-    Sprint 2 keeps this minimal — the orchestrator stub only uses the model
-    for the summary turn after lookup_control returns. LiteLLM routing and
-    prompt-managed models arrive in chunk 2.12 / Sprint 4.
+    Reads ``settings.orchestrator_model`` (default
+    ``"google-gla:gemini-2.5-flash-lite"``) and constructs the matching
+    provider with the API key wired in from :class:`Settings`. No
+    environment-variable mutation: subprocess-leakage closed.
+
+    Refs: PLAN.md Sprint 4 chunk 4.3a; ADR-0001.
     """
-    return os.environ.get("ORCHESTRATOR_MODEL", "gemini-2.5-flash-lite")
+
+    settings = get_settings()
+    return build_model(settings.orchestrator_model, settings)
 
 
-# Module-level hook tests can monkeypatch.
+def _default_mcp_toolset() -> bool:
+    """Return ``True`` when /chat should attach the live MCP toolset.
+
+    Sprint 4 chunk 4.3: the production /chat path spawns
+    ``compliance-kb-mcp`` for every request so tools dispatch over the
+    canonical stdio MCP transport. Tests override this hook to ``False``
+    so they don't fork a subprocess on every assertion.
+    """
+
+    return True
+
+
+# Module-level hooks tests can monkeypatch.
 _chat_model_factory = _default_model
 _chat_checkpointer_factory = memory_checkpointer
+_chat_mcp_toolset = _default_mcp_toolset
 
 
 async def _chat_stream_generator(
     *,
     req: ChatRequest,
     thread_id: str,
+    request: Request | None = None,
+    disconnect_poll_interval_s: float = 5.0,
 ) -> AsyncIterator[str]:
     """Open a Langfuse observation and stream SSE out of the graph.
 
@@ -438,12 +497,39 @@ async def _chat_stream_generator(
     the last chunk. That keeps the whole invocation — including orchestrator
     tool calls and any adversarial dispatch — inside one trace id, so the
     deeplink returned in the `finish` chunk leads to a complete trace.
+
+    Sprint 4 chunk 4.9 — client-disconnect cancellation. We poll
+    ``request.is_disconnected()`` every 5 s in a sidecar task while the
+    graph generator is running. When the client drops, the sidecar
+    cancels the producer and the generator exits cleanly without emitting
+    further chunks. The orchestrator's MCP subprocess (and any in-flight
+    LLM call) is reaped through Pydantic AI's async-with binding because
+    the cancellation propagates through the graph node that opened it.
     """
 
     lc_messages = _to_langchain_messages(req.messages)
     checkpointer = _chat_checkpointer_factory()
-    graph = build_graph(checkpointer, model=_chat_model_factory())
+    # Sprint 4 chunk 4.3 — production /chat ALWAYS spawns the MCP server
+    # subprocess so the orchestrator dispatches lookup_control over the
+    # real stdio transport, the same way third-party consumers of
+    # compliance-kb-mcp will. Tests opt out by replacing
+    # ``_chat_model_factory`` AND ``_chat_mcp_toolset`` (the latter
+    # defaults to False so pure FunctionModel tests never fork).
+    graph = build_graph(
+        checkpointer,
+        model=_chat_model_factory(),
+        mcp_toolset=_chat_mcp_toolset(),
+    )
     config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+
+    # Sprint 4 chunks 4.4a/4.4b — seed the graph state with the user's
+    # repo scope and intent so validate_scope, collect_evidence, and
+    # map_controls have what they need without re-reading the request.
+    graph_input: dict[str, Any] = {
+        "messages": lc_messages,
+        "intent": req.intent,
+        "repo_include_list": list(req.repo_include_list),
+    }
 
     async with traced_chat(
         thread_id=thread_id,
@@ -459,14 +545,55 @@ async def _chat_stream_generator(
                 md["trace_url"] = handle.trace_url
             return md
 
-        async for chunk in ui_message_stream_from_graph_updates(
+        producer = ui_message_stream_from_graph_updates(
             graph,
-            input={"messages": lc_messages},
+            input=graph_input,
             config=config,
             message_metadata={"thread_id": thread_id, "intent": req.intent},
             finish_metadata_cb=finish_metadata,
-        ):
-            yield chunk
+        )
+
+        # Sprint 4 chunk 4.9 — sidecar that watches the client connection.
+        # Cancelled when the producer finishes normally; cancels the
+        # producer when the client drops first. The sidecar does no work
+        # when ``request`` is None (e.g. unit tests that bypass it).
+        cancel_event = asyncio.Event()
+
+        async def _disconnect_watcher() -> None:
+            if request is None:
+                return
+            try:
+                while not cancel_event.is_set():
+                    if await request.is_disconnected():
+                        logger.info(
+                            "chat.client_disconnected thread_id=%s — "
+                            "cancelling graph",
+                            thread_id,
+                        )
+                        record_chat_request(intent=req.intent, outcome="cancelled")
+                        cancel_event.set()
+                        return
+                    await asyncio.sleep(disconnect_poll_interval_s)
+            except asyncio.CancelledError:
+                # Producer finished first — nothing to clean up.
+                raise
+
+        watcher_task = asyncio.create_task(
+            _disconnect_watcher(), name="auditpilot.chat.disconnect_watcher"
+        )
+
+        try:
+            async for chunk in producer:
+                if cancel_event.is_set():
+                    # Client dropped — bail out before the next yield.
+                    return
+                yield chunk
+        finally:
+            watcher_task.cancel()
+            try:
+                await watcher_task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
 
 
 @app.post("/chat")
@@ -490,7 +617,10 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
     thread_id = req.thread_id or f"thread_{uuid.uuid4().hex}"
     record_chat_request(intent=req.intent, outcome="started")
     return StreamingResponse(
-        _chat_stream_generator(req=req, thread_id=thread_id),
+        # Sprint 4 chunk 4.9 — pass the request handle through so the
+        # generator can poll ``request.is_disconnected()`` and cancel
+        # the running graph if the client drops.
+        _chat_stream_generator(req=req, thread_id=thread_id, request=request),
         media_type="text/event-stream",
         headers={
             AI_SDK_V6_HEADER: AI_SDK_V6_VERSION,
