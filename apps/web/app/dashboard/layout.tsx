@@ -22,9 +22,18 @@ export default function DashboardLayout({
             AuditPilot
           </Link>
 
-          {/* HeaderActions is a "use client" leaf — keeps this layout a
-              Server Component (no direct Client Component imports here). */}
-          <HeaderActions />
+          <nav className="flex items-center gap-4 ml-8">
+            <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Scan
+            </Link>
+            <Link href="/dashboard/policies" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Policies
+            </Link>
+          </nav>
+
+          <div className="ml-auto">
+            <HeaderActions />
+          </div>
         </div>
       </header>
 

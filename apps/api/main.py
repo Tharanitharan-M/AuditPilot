@@ -64,7 +64,8 @@ from apps.api.observability.posthog import (
     make_observability_hook,
     shutdown_posthog,
 )
-from apps.api.routes import actions_router, connectors_router
+from apps.api.routes import actions_router, connectors_router, policies_router
+from apps.api.routes.policies import ResumeRequest, _upsert_policy_draft
 from apps.api.services.github_evidence import make_github_evidence_collector
 from apps.api.sse.ai_sdk_v6 import (
     AI_SDK_V6_HEADER,
@@ -304,6 +305,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(connectors_router)
 app.include_router(actions_router)
+app.include_router(policies_router)
 
 
 @app.middleware("http")
@@ -436,6 +438,16 @@ class ChatRequest(BaseModel):
             "Sprint 4 chunk 4.11 cross-checks scope against this id."
         ),
         max_length=64,
+    )
+    policy_type: (
+        Literal["irp", "access_control", "change_management", "vendor_management"]
+        | None
+    ) = Field(
+        default=None,
+        description=(
+            "Policy type to draft. Required when intent='draft_policy'. "
+            "Sprint 6 chunk 6.9."
+        ),
     )
 
 
@@ -770,6 +782,8 @@ async def _chat_stream_generator(
         "user_id": user_id,
         "scan_run_id": scan_run_id,
     }
+    if req.policy_type:
+        graph_input["policy_type"] = req.policy_type
 
     async with traced_chat(
         thread_id=thread_id,
@@ -855,6 +869,48 @@ async def _chat_stream_generator(
                 )
             except Exception:  # noqa: BLE001
                 logger.exception("scan_runs.complete_unexpected_failure")
+
+            # Sprint 6 — persist the policy draft from graph state to
+            # the policy_drafts table so the /api/policies endpoint can
+            # serve it. Best-effort: DB failure here does not crash the
+            # stream (it already finished).
+            if (
+                req.intent == "draft_policy"
+                and db_pool is not None
+                and user_id
+            ):
+                try:
+                    final_state = await graph.aget_state(config)
+                    dp = (
+                        final_state.values.get("draft_policy")
+                        if final_state
+                        else None
+                    )
+                    if dp is not None:
+                        d = (
+                            dp.model_dump()
+                            if hasattr(dp, "model_dump")
+                            else dp
+                        )
+                        await _upsert_policy_draft(
+                            db_pool,
+                            user_id=user_id,
+                            draft_id=d["id"],
+                            policy_type=d.get(
+                                "policy_type", "irp"
+                            ),
+                            title=d.get("title", ""),
+                            content=d.get("content", ""),
+                            version=d.get("version", 1),
+                            finalized=d.get("finalized", False),
+                            thread_id=thread_id,
+                        )
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "policy_draft.persist_failure "
+                        "thread_id=%s",
+                        thread_id,
+                    )
 
 
 @app.post("/chat")
@@ -948,6 +1004,127 @@ async def chat(
             request=request,
             github_token=github_token,
             repo_full_names=repo_full_names,
+            db_pool=pool,
+            gemini_api_key=gemini_key,
+            user_id=user_id,
+        ),
+        media_type="text/event-stream",
+        headers={
+            AI_SDK_V6_HEADER: AI_SDK_V6_VERSION,
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# /chat/resume — HITL resume endpoint (Sprint 6 chunk 6.2, ADR-0007)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+async def _resume_stream_generator(
+    *,
+    thread_id: str,
+    resume_payload: dict[str, Any],
+    request: Request | None = None,
+    db_pool: Any | None = None,
+    gemini_api_key: str | None = None,
+    user_id: str | None = None,
+) -> AsyncIterator[str]:
+    """Resume an interrupted graph and stream the result as SSE."""
+
+    from langgraph.types import Command
+
+    checkpointer = _chat_checkpointer_factory()
+    graph = build_graph(
+        checkpointer,
+        model=_chat_model_factory(),
+        mcp_toolset=_chat_mcp_toolset(),
+        db_pool=db_pool,
+        gemini_api_key=gemini_api_key,
+    )
+    config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+
+    async with traced_chat(thread_id=thread_id, intent="resume") as handle:
+        async def finish_metadata() -> dict[str, Any] | None:
+            md: dict[str, Any] = {"thread_id": thread_id, "intent": "resume"}
+            if handle.trace_id:
+                md["trace_id"] = handle.trace_id
+            if handle.trace_url:
+                md["trace_url"] = handle.trace_url
+            return md
+
+        producer = ui_message_stream_from_graph_updates(
+            graph,
+            input=Command(resume=resume_payload),
+            config=config,
+            message_metadata={"thread_id": thread_id, "intent": "resume"},
+            finish_metadata_cb=finish_metadata,
+        )
+
+        async for chunk in producer:
+            yield chunk
+
+
+@app.post("/chat/resume")
+@limiter.limit(_chat_rate_limit)
+async def chat_resume(
+    req: ResumeRequest,
+    request: Request,
+    pool: AppDbPoolOptionalDep,
+    clerk_user: ClerkUser = Depends(verify_clerk_token),
+) -> StreamingResponse:
+    """Resume an interrupted HITL graph (Sprint 6 chunk 6.2, ADR-0007).
+
+    Auth: same Clerk JWT as the original /chat. The verified user_id
+    must match the user who started the interrupted graph — the
+    PostgresSaver checkpoint is keyed by thread_id which is session-
+    scoped, and the graph state contains user_id for cross-check.
+
+    Returns an SSE stream with the graph's post-resume output.
+    """
+
+    user_id: str = clerk_user.user_id
+    record_chat_request(intent="resume", outcome="started")
+
+    # Ownership cross-check: verify the authenticated user owns the
+    # interrupted thread before allowing resume (python-reviewer F1).
+    checkpointer = _chat_checkpointer_factory()
+    ownership_graph = build_graph(
+        checkpointer,
+        model=_chat_model_factory(),
+        mcp_toolset=False,
+    )
+    ownership_config: dict[str, Any] = {"configurable": {"thread_id": req.thread_id}}
+    try:
+        state = await ownership_graph.aget_state(ownership_config)
+        if state and state.values:
+            thread_owner = state.values.get("user_id")
+            if thread_owner and thread_owner != user_id:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=403, detail="Thread not owned by this user")
+    except HTTPException:
+        raise
+    except Exception:  # noqa: BLE001
+        logger.warning("resume.ownership_check_failed thread_id=%s", req.thread_id)
+
+    resume_payload = {
+        "decision": req.decision,
+        "edited_content": req.edited_content,
+        "rejection_reason": req.rejection_reason,
+    }
+
+    gemini_key: str | None = None
+    try:
+        gemini_key = get_settings().gemini_api_key.get_secret_value()
+    except Exception:  # noqa: BLE001
+        pass
+
+    return StreamingResponse(
+        _resume_stream_generator(
+            thread_id=req.thread_id,
+            resume_payload=resume_payload,
+            request=request,
             db_pool=pool,
             gemini_api_key=gemini_key,
             user_id=user_id,

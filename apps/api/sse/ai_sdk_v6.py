@@ -120,10 +120,22 @@ class AbortChunk(_BaseChunk):
 class FinishChunk(_BaseChunk):
     type: Literal["finish"] = "finish"
     finishReason: (
-        Literal["stop", "length", "content-filter", "tool-calls", "error", "other"]
+        Literal["stop", "length", "content-filter", "tool-calls", "error", "other", "interrupt"]
         | None
     ) = "stop"
     messageMetadata: dict[str, Any] | None = None
+
+
+class DataPolicyDraftChunk(_BaseChunk):
+    """AI SDK 6 typed-data chunk surfacing the current policy draft.
+
+    The frontend ``/policies`` route captures these to populate the
+    editor pane with the draft content (Sprint 6 chunk 6.10).
+    """
+
+    type: Literal["data-policy-draft"] = "data-policy-draft"
+    id: str
+    data: dict[str, Any]
 
 
 class DataControlMapChunk(_BaseChunk):
@@ -215,6 +227,8 @@ async def ui_message_stream_from_graph_updates(
     # for every downstream node update. Re-emit only when the state changes.
     last_control_map_payload: list[dict[str, Any]] | None = None
     last_evidence_payload: list[dict[str, Any]] | None = None
+    # Sprint 6 — track whether the graph hit an interrupt (HITL gate).
+    graph_interrupted = False
 
     try:
         async for node_to_update in graph.astream(
@@ -246,6 +260,27 @@ async def ui_message_stream_from_graph_updates(
                             data=evidence_payload,
                         )
                     )
+
+                # Sprint 6 — surface draft policy to the frontend editor.
+                policy_draft_payload = _extract_policy_draft(update)
+                if policy_draft_payload is not None:
+                    yield sse_encode(
+                        DataPolicyDraftChunk(
+                            id=f"pd_{uuid.uuid4().hex}",
+                            data=policy_draft_payload,
+                        )
+                    )
+
+                # Sprint 6 — detect interrupt from the human_review_gate.
+                _hitl_steps = (
+                    "hitl_approved", "hitl_edited",
+                    "hitl_rejected", "circuit_breaker_fired",
+                )
+                if _node_name == "__interrupt__" or (
+                    isinstance(update, dict)
+                    and update.get("current_step") in _hitl_steps
+                ):
+                    pass  # handled below by checking graph state
 
                 messages = _extract_messages(update)
                 for msg in messages:
@@ -300,14 +335,28 @@ async def ui_message_stream_from_graph_updates(
         yield SSE_DONE
         return
 
+    # Sprint 6 — detect if the graph stopped due to an interrupt (HITL gate).
+    # LangGraph's astream(stream_mode="updates") ends normally when an
+    # interrupt() fires, so we check the graph's pending state.
+    try:
+        graph_state = await graph.aget_state(config)
+        if graph_state and getattr(graph_state, "tasks", None):
+            for task in graph_state.tasks:
+                if getattr(task, "interrupts", None):
+                    graph_interrupted = True
+                    break
+    except Exception:  # noqa: BLE001
+        pass
+
     yield sse_encode(FinishStepChunk())
 
     finish_metadata: dict[str, Any] | None = None
     if finish_metadata_cb is not None:
         finish_metadata = await finish_metadata_cb()
 
+    finish_reason: str = "interrupt" if graph_interrupted else "stop"
     yield sse_encode(
-        FinishChunk(finishReason="stop", messageMetadata=finish_metadata)
+        FinishChunk(finishReason=finish_reason, messageMetadata=finish_metadata)  # type: ignore[arg-type]
     )
     yield SSE_DONE
 
@@ -364,6 +413,26 @@ def _extract_evidence(update: Any) -> list[dict[str, Any]] | None:
     return rows
 
 
+def _extract_policy_draft(update: Any) -> dict[str, Any] | None:
+    """Pull a serialised ``state.draft_policy`` out of a node update.
+
+    Returns the PolicyDraft dict when present; ``None`` otherwise.
+    Sprint 6 chunk 6.10 — the frontend /policies route consumes this
+    to populate the editor pane.
+    """
+
+    if not update or not isinstance(update, dict):
+        return None
+    dp = update.get("draft_policy")
+    if dp is None:
+        return None
+    if hasattr(dp, "model_dump"):
+        return dp.model_dump(mode="json")
+    if isinstance(dp, dict):
+        return dp
+    return None
+
+
 def _extract_messages(update: Any) -> list[BaseMessage]:
     """Normalise a LangGraph node update into a list of `BaseMessage`.
 
@@ -395,6 +464,7 @@ __all__ = [
     "AbortChunk",
     "DataControlMapChunk",
     "DataEvidenceRowsChunk",
+    "DataPolicyDraftChunk",
     "ErrorChunk",
     "FinishChunk",
     "FinishStepChunk",

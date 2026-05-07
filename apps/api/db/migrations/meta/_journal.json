@@ -50,6 +50,13 @@
       "when": 1778044144000,
       "tag": "0006_control_map_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778130544000,
+      "tag": "0007_policy_drafts",
+      "breakpoints": true
     }
   ]
 }

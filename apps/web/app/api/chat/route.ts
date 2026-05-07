@@ -56,6 +56,10 @@ const ChatBodySchema = z
       .max(64)
       .optional()
       .nullable(),
+    policy_type: z
+      .enum(["irp", "access_control", "change_management", "vendor_management"])
+      .optional()
+      .nullable(),
   })
   .passthrough()
 

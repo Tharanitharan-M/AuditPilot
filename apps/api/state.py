@@ -106,6 +106,57 @@ class Finding(BaseModel):
     recommended_next_step: str | None = None
 
 
+class HumanReviewPayload(BaseModel):
+    """Typed resume payload for the HITL gate (ADR-0007).
+
+    Sent from ``POST /chat/resume`` and delivered to the graph node via
+    ``Command(resume=payload)``. The ``interrupt()`` call inside
+    ``human_review_gate`` returns this as its result.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal["approve", "edit", "reject"] = Field(
+        description="User decision on the draft output.",
+    )
+    edited_content: str | None = Field(
+        default=None,
+        description="Populated when decision='edit'. Replaces the draft.",
+        max_length=100_000,
+    )
+    rejection_reason: str | None = Field(
+        default=None,
+        description="Populated when decision='reject'. Injected into re-draft prompt.",
+        max_length=2000,
+    )
+
+
+class PolicyDraft(BaseModel):
+    """A single policy draft stored in graph state (Sprint 6 chunk 6.9)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Unique draft id (UUID hex).")
+    policy_type: str = Field(
+        description="One of 'irp', 'access_control', "
+        "'change_management', 'vendor_management'.",
+    )
+    title: str = Field(default="")
+    content: str = Field(default="", description="Markdown body with [CC*] citations.")
+    version: int = Field(default=1)
+    finalized: bool = Field(default=False)
+
+
+POLICY_TYPES: frozenset[str] = frozenset({
+    "irp",
+    "access_control",
+    "change_management",
+    "vendor_management",
+})
+
+HITL_MAX_REJECTIONS: int = 3
+
+
 class AuditPilotState(BaseModel):
     """Canonical orchestrator state.
 
@@ -150,6 +201,21 @@ class AuditPilotState(BaseModel):
     # for parity with the DB column).
     repo_include_list: list[str] = Field(default_factory=list)
 
+    # Sprint 6 — policy drafting + HITL gate (ADR-0007)
+    draft_policy: PolicyDraft | None = Field(
+        default=None,
+        description="The current policy draft awaiting HITL review.",
+    )
+    policy_type: str | None = Field(
+        default=None,
+        description="Policy type requested by the user (e.g. 'irp').",
+    )
+    hitl_rejection_count: int = Field(
+        default=0,
+        description="Consecutive rejections on current draft. "
+        "Circuit breaker fires at 3.",
+    )
+
     # Sprint 5 chunk 5.19 — ``repo_full_names`` was removed from state.
     # The mapping is now captured exclusively in the GitHub evidence
     # collector's closure (see ``make_github_evidence_collector``) so it
@@ -162,6 +228,9 @@ class AuditPilotState(BaseModel):
 # Intents that require a non-empty connector scope before any tool calls.
 # Free chat ("free_chat" or None) never requires a scope.
 SCOPE_REQUIRED_INTENTS: frozenset[str] = frozenset({"run_readiness_scan"})
+
+# Intents that trigger the policy drafting pipeline (Sprint 6).
+POLICY_DRAFT_INTENTS: frozenset[str] = frozenset({"draft_policy"})
 
 
 class ScanRunValidationError(Exception):
@@ -176,6 +245,11 @@ __all__ = [
     "ControlAssessment",
     "Evidence",
     "Finding",
+    "HITL_MAX_REJECTIONS",
+    "HumanReviewPayload",
+    "POLICY_DRAFT_INTENTS",
+    "POLICY_TYPES",
+    "PolicyDraft",
     "ScanRunValidationError",
     "SCOPE_REQUIRED_INTENTS",
 ]

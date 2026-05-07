@@ -1,6 +1,7 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   // PostHog reverse-proxy rewrites — avoids adblocker blocking (ADR-0009)
   async rewrites() {
     return [
