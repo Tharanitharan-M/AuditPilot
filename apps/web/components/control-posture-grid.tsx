@@ -72,13 +72,58 @@ function parentBelongsTo(parent: string, categoryKey: string): boolean {
   return parent.startsWith(categoryKey)
 }
 
+// ── Control plain-English labels ──────────────────────────────────────────────
+
+const CONTROL_LABELS: Record<string, string> = {
+  "CC1.1": "Control Environment",
+  "CC1.2": "Board Oversight",
+  "CC1.3": "Management Structure",
+  "CC1.4": "Competence Commitment",
+  "CC1.5": "Accountability",
+  "CC2.1": "Information Flow",
+  "CC2.2": "Internal Communication",
+  "CC2.3": "External Communication",
+  "CC3.1": "Risk Assessment Objectives",
+  "CC3.2": "Risk Identification",
+  "CC3.3": "Fraud Risk",
+  "CC3.4": "Change Impact Analysis",
+  "CC4.1": "Monitoring Activities",
+  "CC4.2": "Deficiency Evaluation",
+  "CC5.1": "Control Activities Selection",
+  "CC5.2": "Technology Controls",
+  "CC5.3": "Policy-based Controls",
+  "CC6.1": "Access Controls",
+  "CC6.2": "Access Provisioning",
+  "CC6.3": "Access Removal",
+  "CC6.4": "Access Review",
+  "CC6.5": "Physical Access",
+  "CC6.6": "Logical Access Security",
+  "CC6.7": "Access Restriction",
+  "CC6.8": "Malware Prevention",
+  "CC7.1": "Detection of Changes",
+  "CC7.2": "Monitoring for Anomalies",
+  "CC7.3": "Incident Response",
+  "CC7.4": "Incident Recovery",
+  "CC8.1": "Change Management",
+  "CC9.1": "Vendor Risk Mitigation",
+  "CC9.2": "Vendor Risk Assessment",
+  "A1.1": "Capacity Management",
+  "A1.2": "Recovery Planning",
+  "A1.3": "Recovery Testing",
+  "C1.1": "Data Classification",
+  "C1.2": "Data Disposal",
+  "PI1.1": "Processing Accuracy",
+  "PI1.2": "Input Validation",
+  "P1.1": "Privacy Notice",
+}
+
 // ── Colour / label helpers ────────────────────────────────────────────────────
 
 const STATUS_CLASSES: Record<AssessmentStatus, string> = {
-  passing: "bg-green-700 text-white",
-  failing: "bg-red-700 text-white",
-  partial: "bg-amber-600 text-black",
-  unknown: "bg-zinc-300 text-zinc-900",
+  passing: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
+  failing: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  partial: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+  unknown: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
 }
 
 const STATUS_LABELS: Record<AssessmentStatus, string> = {
@@ -112,7 +157,8 @@ interface ChipProps {
 function ControlChip({ assessment, isOpen, onClick }: ChipProps) {
   const { tsc_id, status, confidence } = assessment
   const pct = Math.round(confidence * 100)
-  const ariaLabel = `${tsc_id} — ${STATUS_LABELS[status]} — confidence ${pct}%`
+  const label = CONTROL_LABELS[tsc_id] ?? tsc_id
+  const ariaLabel = `${tsc_id} — ${label} — ${STATUS_LABELS[status]} — confidence ${pct}%`
 
   return (
     <button
@@ -121,17 +167,21 @@ function ControlChip({ assessment, isOpen, onClick }: ChipProps) {
       aria-expanded={isOpen}
       onClick={onClick}
       className={[
-        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium",
-        "transition-opacity hover:opacity-90 active:opacity-80",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
-        STATUS_CLASSES[status],
-        statusFocusRing(status),
+        "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm",
+        "transition-all duration-300 hover:bg-muted/50 active:opacity-90",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
       ].join(" ")}
     >
-      <span aria-hidden="true">{tsc_id}</span>
-      {/* Text-encoded status satisfies WCAG 1.4.1 (not colour alone) */}
-      <span className="sr-only">{STATUS_LABELS[status]}</span>
-      <span aria-hidden="true" className="opacity-75 text-[10px]">
+      <div className="flex flex-col min-w-0">
+        <span className="font-mono text-xs font-medium">{tsc_id}</span>
+        <span className="text-xs text-muted-foreground truncate">{label}</span>
+      </div>
+      <span
+        className={[
+          "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+          STATUS_CLASSES[status],
+        ].join(" ")}
+      >
         {STATUS_LABELS[status]}
       </span>
     </button>
@@ -358,7 +408,7 @@ export function ControlPostureGrid({
                         <span className="min-w-[3rem] text-xs font-semibold text-muted-foreground">
                           {parent}
                         </span>
-                        {subClauses.sort().map((tscId) => {
+                        {[...subClauses].sort().map((tscId) => {
                           const assessment = byId.get(tscId)
                           if (!assessment) return null
                           return (

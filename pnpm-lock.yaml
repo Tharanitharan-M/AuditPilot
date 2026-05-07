@@ -135,6 +135,8 @@ importers:
 
   packages/eval-harness: {}
 
+  packages/evidence-store-mcp: {}
+
   packages/shared-types:
     devDependencies:
       typescript:

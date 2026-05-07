@@ -32,7 +32,30 @@
  *       apps/api/sse/ai_sdk_v6.py for the canonical chunk shapes.
  */
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+
+const STORAGE_KEY_CONTROL_MAP = "auditpilot:controlMap"
+const STORAGE_KEY_EVIDENCE = "auditpilot:evidenceRows"
+const STORAGE_KEY_MESSAGES = "auditpilot:chatMessages"
+
+function loadFromStorage<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function saveToStorage<T>(key: string, value: T): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // quota exceeded — degrade silently
+  }
+}
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -154,16 +177,30 @@ export function useScanStream(
   const api = options.api ?? "/api/chat"
   const staticBody = options.body ?? {}
 
-  const [messages, setMessages] = useState<ScanMessage[]>([])
+  const [messages, setMessages] = useState<ScanMessage[]>(() =>
+    loadFromStorage<ScanMessage[]>(STORAGE_KEY_MESSAGES, [])
+  )
   const [input, setInput] = useState("")
   const [status, setStatus] = useState<ScanStatus>("idle")
   const [error, setError] = useState<Error | null>(null)
-  // Sprint 5 — live state lifted out of the message stream so siblings of
-  // ScanChat (the Control Posture grid, Evidence cards) can render the
-  // current scan without re-parsing the chat transcript.
-  const [controlMap, setControlMap] = useState<StreamControlAssessment[]>([])
-  const [evidenceRows, setEvidenceRows] = useState<StreamEvidenceRow[]>([])
+  const [controlMap, setControlMap] = useState<StreamControlAssessment[]>(() =>
+    loadFromStorage<StreamControlAssessment[]>(STORAGE_KEY_CONTROL_MAP, [])
+  )
+  const [evidenceRows, setEvidenceRows] = useState<StreamEvidenceRow[]>(() =>
+    loadFromStorage<StreamEvidenceRow[]>(STORAGE_KEY_EVIDENCE, [])
+  )
   const abortRef = useRef<AbortController | null>(null)
+
+  // Persist to localStorage when data changes so it survives navigation.
+  useEffect(() => {
+    if (controlMap.length > 0) saveToStorage(STORAGE_KEY_CONTROL_MAP, controlMap)
+  }, [controlMap])
+  useEffect(() => {
+    if (evidenceRows.length > 0) saveToStorage(STORAGE_KEY_EVIDENCE, evidenceRows)
+  }, [evidenceRows])
+  useEffect(() => {
+    if (messages.length > 0) saveToStorage(STORAGE_KEY_MESSAGES, messages)
+  }, [messages])
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

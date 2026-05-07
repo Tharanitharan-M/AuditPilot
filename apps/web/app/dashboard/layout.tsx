@@ -1,12 +1,5 @@
-/**
- * Dashboard layout — app shell with header + logout button.
- * This route is protected by middleware.ts (chunk 3.5); if somehow reached
- * without auth, Clerk's <UserButton> will render nothing gracefully.
- * Refs: PLAN.md chunks 3.4, 3.5, US-001.
- */
-
-import Link from "next/link"
-import { HeaderActions } from "@/components/header-actions"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { AppSidebar } from "@/components/app-sidebar"
 
 export default function DashboardLayout({
   children,
@@ -14,30 +7,13 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-background">
-      {/* App shell header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
-          <Link href="/dashboard" className="font-semibold">
-            AuditPilot
-          </Link>
-
-          <nav className="flex items-center gap-4 ml-8">
-            <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Scan
-            </Link>
-            <Link href="/dashboard/policies" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Policies
-            </Link>
-          </nav>
-
-          <div className="ml-auto">
-            <HeaderActions />
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
-    </div>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <main className="flex-1 px-4 py-6 md:px-8 lg:px-10">
+          <div className="mx-auto max-w-[1200px]">{children}</div>
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

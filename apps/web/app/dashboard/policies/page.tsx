@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { IslandErrorBoundary } from "@/components/error-boundary";
+import { PageHeader } from "@/components/page-header";
 import { z } from "zod";
 
 const PolicyDraftSchema = z.object({
@@ -148,7 +150,18 @@ function DraftPolicyButton({
 }
 
 export default function PoliciesPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><p className="text-muted-foreground">Loading policies...</p></div>}>
+      <PoliciesPageInner />
+    </Suspense>
+  );
+}
+
+function PoliciesPageInner() {
   const { getToken } = useAuth();
+  const searchParams = useSearchParams();
+  const templateParam = searchParams?.get("template") as PolicyType | null;
+  const controlParam = searchParams?.get("control") ?? null;
   const [policies, setPolicies] = useState<PolicyDraft[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedPolicy, setSelectedPolicy] = useState<PolicyDraft | null>(null);
@@ -367,7 +380,20 @@ export default function PoliciesPage() {
 
   return (
     <IslandErrorBoundary name="PoliciesPage">
-      <div className="flex gap-6 h-[calc(100vh-120px)]">
+      <div className="space-y-6">
+      <PageHeader
+        title="Policies"
+        description="Draft, edit, and download SOC 2 readiness policy documents."
+      />
+
+      {templateParam && controlParam && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm dark:border-blue-900 dark:bg-blue-900/20">
+          Drafting for <span className="font-medium">{controlParam}</span> using the{" "}
+          <span className="font-medium">{POLICY_TYPE_LABELS[templateParam] ?? templateParam}</span> template.
+        </div>
+      )}
+
+      <div className="flex gap-6 h-[calc(100vh-200px)]">
         {/* Left sidebar — policy list + draft buttons */}
         <div className="w-72 flex-shrink-0 flex flex-col gap-4">
           <Card>
@@ -446,6 +472,7 @@ export default function PoliciesPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </IslandErrorBoundary>
   );

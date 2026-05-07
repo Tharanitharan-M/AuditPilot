@@ -60,29 +60,33 @@ export function ScanWorkspace({
   }, [stream.evidenceRows])
 
   return (
-    <>
-      {/* Control posture grid — Sprint 5 chunk 5.23. Live assessments
-          flow from the SSE bridge's data-control-map chunks. */}
-      <section aria-label="SOC 2 TSC control posture">
-        <h2 className="mb-4 text-lg font-semibold">Control Posture</h2>
-        <ControlPostureGrid
-          assessments={stream.controlMap}
-          evidenceMap={evidenceMap}
+    <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
+      <div className="space-y-6">
+        <section aria-label="SOC 2 TSC control posture">
+          <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Control Posture
+          </h2>
+          <ControlPostureGrid
+            assessments={stream.controlMap}
+            evidenceMap={evidenceMap}
+          />
+        </section>
+
+        <section aria-label="Pending actions">
+          <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Pending Actions
+          </h2>
+          <PendingActions />
+        </section>
+      </div>
+
+      <div className="xl:sticky xl:top-6 xl:self-start">
+        <ScanChat
+          connectorId={connectorId}
+          repoIncludeList={repoIncludeList}
+          stream={stream}
         />
-      </section>
-
-      {/* Pending actions — chunk 4.7. Still self-fetching from /api/actions. */}
-      <section aria-label="Pending actions">
-        <h2 className="mb-4 text-lg font-semibold">Pending Actions</h2>
-        <PendingActions />
-      </section>
-
-      {/* Readiness scan chat — Sprint 4 chunks 4.1, 4.2; Sprint 5 5.23. */}
-      <ScanChat
-        connectorId={connectorId}
-        repoIncludeList={repoIncludeList}
-        stream={stream}
-      />
-    </>
+      </div>
+    </div>
   )
 }

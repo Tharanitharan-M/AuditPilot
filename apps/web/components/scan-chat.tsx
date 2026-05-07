@@ -87,75 +87,69 @@ export function ScanChat({
   }
 
   return (
-    <section aria-label="Readiness scan chat" className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Readiness Scan</h2>
+    <section
+      aria-label="Readiness scan chat"
+      className="flex flex-col rounded-xl border bg-card"
+    >
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <h2 className="text-sm font-medium">Readiness Scan</h2>
 
         {hasScope ? (
           <Button
-            size="sm"
+            size="xs"
             onClick={handleScanClick}
             disabled={isStreaming}
             aria-label="Run readiness scan"
           >
-            {isStreaming ? "Scanning…" : "Run readiness scan"}
+            {isStreaming ? "Scanning…" : "Run scan"}
           </Button>
         ) : (
-          <div className="flex items-center gap-2">
-            <Button size="sm" disabled aria-label="Run readiness scan">
-              Run readiness scan
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              No repos scoped.{" "}
-              <Link
-                href={`/dashboard/connectors/${connectorId}/scope`}
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                Configure scope →
-              </Link>
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            No repos scoped.{" "}
+            <Link
+              href={`/dashboard/connectors/${connectorId}/scope`}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Configure →
+            </Link>
+          </p>
         )}
       </div>
 
-      {/* Visible error surface — shown when the proxy or stream fails.
-          Sprint 4 chunk 4.14 — ``aria-live="assertive"`` interrupts the
-          screen reader, ``aria-atomic`` reads the whole message, and the
-          existing ``role="alert"`` keeps the assertive politeness without
-          needing a redundant value. */}
       {error && (
         <div
           role="alert"
           aria-live="assertive"
           aria-atomic="true"
           data-testid="scan-chat-error"
-          className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="mx-4 mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           {error.message}
         </div>
       )}
 
-      {/* Message thread.
-          Sprint 4 chunk 4.14 — ``aria-live="polite"`` so screen readers
-          announce new assistant turns without interrupting whatever the
-          user is reading. ``aria-busy`` flips during the stream so AT
-          knows updates are in progress and can wait for the quiet
-          moment before reading the final message. */}
       <div
         ref={scrollRef}
         role="log"
         aria-live="polite"
         aria-relevant="additions text"
         aria-busy={isStreaming}
-        className="flex max-h-[60vh] min-h-[200px] flex-col gap-3 overflow-y-auto rounded-xl border bg-card p-4"
+        className="flex min-h-[300px] max-h-[60vh] flex-col gap-3 overflow-y-auto px-4 py-4"
         aria-label="Chat messages"
       >
         {messages.length === 0 && !isStreaming && (
-          <p className="m-auto text-sm text-muted-foreground">
-            {hasScope
-              ? 'Click "Run readiness scan" to start, or type a question below.'
-              : "Configure a repo scope to enable the readiness scan."}
-          </p>
+          <div className="m-auto flex flex-col items-center gap-2 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+              <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+              </svg>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {hasScope
+                ? "Run a scan or ask a question to get started."
+                : "Configure a repo scope to enable scanning."}
+            </p>
+          </div>
         )}
 
         {messages.map((msg) => (
@@ -174,18 +168,18 @@ export function ScanChat({
         )}
       </div>
 
-      {/* Free-text input */}
       <form
         onSubmit={handleSubmit}
-        className="flex gap-2"
+        className="flex gap-2 border-t px-4 py-3"
         aria-label="Chat input"
       >
         <Input
           value={input}
           onChange={handleInputChange}
-          placeholder="Ask a question about your readiness…"
+          placeholder="Ask about your readiness…"
           disabled={isStreaming}
           aria-label="Chat message input"
+          className="h-9 text-sm"
         />
         <Button type="submit" size="sm" disabled={isStreaming || !input.trim()}>
           Send

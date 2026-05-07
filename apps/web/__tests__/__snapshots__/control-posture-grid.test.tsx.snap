@@ -11,7 +11,7 @@ exports[`ControlPostureGrid > matches snapshot with representative fixture (all 
       aria-label="CC — Common Criteria"
     >
       <div
-        class="group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
+        class="group/card flex flex-col gap-4 overflow-hidden rounded-xl border border-border/60 bg-card py-4 text-sm text-card-foreground shadow-sm transition-shadow hover:shadow-md has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
         data-size="default"
         data-slot="card"
       >
@@ -43,46 +43,52 @@ exports[`ControlPostureGrid > matches snapshot with representative fixture (all 
               </span>
               <button
                 aria-expanded="false"
-                aria-label="CC6.1 — passing — confidence 92%"
-                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-green-700 text-white focus-visible:ring-green-500"
+                aria-label="CC6.1 — Access Controls — passing — confidence 92%"
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all duration-300 hover:bg-muted/50 active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 type="button"
               >
-                <span
-                  aria-hidden="true"
+                <div
+                  class="flex flex-col min-w-0"
                 >
-                  CC6.1
-                </span>
+                  <span
+                    class="font-mono text-xs font-medium"
+                  >
+                    CC6.1
+                  </span>
+                  <span
+                    class="text-xs text-muted-foreground truncate"
+                  >
+                    Access Controls
+                  </span>
+                </div>
                 <span
-                  class="sr-only"
-                >
-                  passing
-                </span>
-                <span
-                  aria-hidden="true"
-                  class="opacity-75 text-[10px]"
+                  class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
                 >
                   passing
                 </span>
               </button>
               <button
                 aria-expanded="false"
-                aria-label="CC6.2 — failing — confidence 21%"
-                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-red-700 text-white focus-visible:ring-red-500"
+                aria-label="CC6.2 — Access Provisioning — failing — confidence 21%"
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all duration-300 hover:bg-muted/50 active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 type="button"
               >
-                <span
-                  aria-hidden="true"
+                <div
+                  class="flex flex-col min-w-0"
                 >
-                  CC6.2
-                </span>
+                  <span
+                    class="font-mono text-xs font-medium"
+                  >
+                    CC6.2
+                  </span>
+                  <span
+                    class="text-xs text-muted-foreground truncate"
+                  >
+                    Access Provisioning
+                  </span>
+                </div>
                 <span
-                  class="sr-only"
-                >
-                  failing
-                </span>
-                <span
-                  aria-hidden="true"
-                  class="opacity-75 text-[10px]"
+                  class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
                 >
                   failing
                 </span>
@@ -102,23 +108,26 @@ exports[`ControlPostureGrid > matches snapshot with representative fixture (all 
               </span>
               <button
                 aria-expanded="false"
-                aria-label="CC7.1 — partial — confidence 55%"
-                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-amber-600 text-black focus-visible:ring-amber-500"
+                aria-label="CC7.1 — Detection of Changes — partial — confidence 55%"
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all duration-300 hover:bg-muted/50 active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 type="button"
               >
-                <span
-                  aria-hidden="true"
+                <div
+                  class="flex flex-col min-w-0"
                 >
-                  CC7.1
-                </span>
+                  <span
+                    class="font-mono text-xs font-medium"
+                  >
+                    CC7.1
+                  </span>
+                  <span
+                    class="text-xs text-muted-foreground truncate"
+                  >
+                    Detection of Changes
+                  </span>
+                </div>
                 <span
-                  class="sr-only"
-                >
-                  partial
-                </span>
-                <span
-                  aria-hidden="true"
-                  class="opacity-75 text-[10px]"
+                  class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
                 >
                   partial
                 </span>
@@ -132,7 +141,7 @@ exports[`ControlPostureGrid > matches snapshot with representative fixture (all 
       aria-label="A — Availability"
     >
       <div
-        class="group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
+        class="group/card flex flex-col gap-4 overflow-hidden rounded-xl border border-border/60 bg-card py-4 text-sm text-card-foreground shadow-sm transition-shadow hover:shadow-md has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
         data-size="default"
         data-slot="card"
       >
@@ -164,23 +173,26 @@ exports[`ControlPostureGrid > matches snapshot with representative fixture (all 
               </span>
               <button
                 aria-expanded="false"
-                aria-label="A1.1 — unknown — confidence 0%"
-                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-zinc-300 text-zinc-900 focus-visible:ring-zinc-400"
+                aria-label="A1.1 — Capacity Management — unknown — confidence 0%"
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all duration-300 hover:bg-muted/50 active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 type="button"
               >
-                <span
-                  aria-hidden="true"
+                <div
+                  class="flex flex-col min-w-0"
                 >
-                  A1.1
-                </span>
+                  <span
+                    class="font-mono text-xs font-medium"
+                  >
+                    A1.1
+                  </span>
+                  <span
+                    class="text-xs text-muted-foreground truncate"
+                  >
+                    Capacity Management
+                  </span>
+                </div>
                 <span
-                  class="sr-only"
-                >
-                  unknown
-                </span>
-                <span
-                  aria-hidden="true"
-                  class="opacity-75 text-[10px]"
+                  class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
                 >
                   unknown
                 </span>
@@ -194,7 +206,7 @@ exports[`ControlPostureGrid > matches snapshot with representative fixture (all 
       aria-label="PI — Processing Integrity"
     >
       <div
-        class="group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
+        class="group/card flex flex-col gap-4 overflow-hidden rounded-xl border border-border/60 bg-card py-4 text-sm text-card-foreground shadow-sm transition-shadow hover:shadow-md has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl"
         data-size="default"
         data-slot="card"
       >
@@ -226,23 +238,26 @@ exports[`ControlPostureGrid > matches snapshot with representative fixture (all 
               </span>
               <button
                 aria-expanded="false"
-                aria-label="PI1.2 — passing — confidence 88%"
-                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 bg-green-700 text-white focus-visible:ring-green-500"
+                aria-label="PI1.2 — Input Validation — passing — confidence 88%"
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all duration-300 hover:bg-muted/50 active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 type="button"
               >
-                <span
-                  aria-hidden="true"
+                <div
+                  class="flex flex-col min-w-0"
                 >
-                  PI1.2
-                </span>
+                  <span
+                    class="font-mono text-xs font-medium"
+                  >
+                    PI1.2
+                  </span>
+                  <span
+                    class="text-xs text-muted-foreground truncate"
+                  >
+                    Input Validation
+                  </span>
+                </div>
                 <span
-                  class="sr-only"
-                >
-                  passing
-                </span>
-                <span
-                  aria-hidden="true"
-                  class="opacity-75 text-[10px]"
+                  class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
                 >
                   passing
                 </span>

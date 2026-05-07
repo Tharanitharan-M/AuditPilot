@@ -135,30 +135,27 @@ describe("ScanChat", () => {
     }
   })
 
-  it("empty-scope: Run readiness scan button is disabled + scope CTA link rendered", () => {
+  it("empty-scope: scope CTA link rendered (no scan button)", () => {
     render(
       <ScanChat connectorId={CONNECTOR_ID} repoIncludeList={[]} />
     )
 
-    const btn = screen.getByRole("button", { name: /run readiness scan/i })
-    expect(btn).toBeDisabled()
-
     // Scope CTA link points to the correct scope-picker URL.
-    const link = screen.getByRole("link", { name: /configure scope/i })
+    const link = screen.getByRole("link", { name: /configure/i })
     expect(link).toHaveAttribute(
       "href",
       `/dashboard/connectors/${CONNECTOR_ID}/scope`
     )
   })
 
-  it("populated-scope: Run readiness scan button is enabled", () => {
+  it("populated-scope: Run scan button is enabled", () => {
     render(
       <ScanChat connectorId={CONNECTOR_ID} repoIncludeList={REPO_IDS} />
     )
 
     const btn = screen.getByRole("button", { name: /run readiness scan/i })
     expect(btn).toBeEnabled()
-    expect(btn).toHaveTextContent(/run readiness scan/i)
+    expect(btn).toHaveTextContent(/run scan/i)
   })
 
   it("populated-scope: clicking Run readiness scan calls append with the correct message", () => {
@@ -234,7 +231,7 @@ describe("ScanChat", () => {
     )
 
     expect(
-      screen.getByText(/configure a repo scope to enable the readiness scan/i)
+      screen.getByText(/configure a repo scope to enable scanning/i)
     ).toBeInTheDocument()
   })
 
@@ -244,7 +241,7 @@ describe("ScanChat", () => {
     )
 
     expect(
-      screen.getByText(/click.*run readiness scan.*to start/i)
+      screen.getByText(/run a scan or ask a question to get started/i)
     ).toBeInTheDocument()
   })
 

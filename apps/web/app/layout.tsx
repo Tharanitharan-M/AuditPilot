@@ -13,6 +13,7 @@ import { Inter, Geist } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
 import "./globals.css"
 import { PostHogProvider } from "@/components/posthog-provider"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
@@ -38,7 +39,9 @@ export default function RootLayout({
     >
       <html lang="en" className={cn("font-sans", geist.variable)}>
         <body className={inter.className}>
-          <PostHogProvider>{children}</PostHogProvider>
+          <PostHogProvider>
+            <TooltipProvider delay={300}>{children}</TooltipProvider>
+          </PostHogProvider>
         </body>
       </html>
     </ClerkProvider>
