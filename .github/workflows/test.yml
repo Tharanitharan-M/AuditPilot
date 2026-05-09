@@ -55,7 +55,13 @@ jobs:
       - name: Test — apps/api
         if: hashFiles('apps/api/tests/**') != ''
         run: |
+          # The api worker + tests import several sibling MCP packages
+          # directly (questionnaire_mcp brings openpyxl, policy_template_mcp
+          # brings jinja2). Install them in editable mode before installing
+          # the api itself so all transitive deps are on the path.
           uv pip install --system -e packages/compliance-kb-mcp
+          uv pip install --system -e packages/policy-template-mcp
+          uv pip install --system -e packages/questionnaire-mcp
           cd apps/api
           uv pip install --system -e ".[dev]"
           pytest tests/ --tb=short -q
