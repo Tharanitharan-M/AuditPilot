@@ -393,9 +393,9 @@ function PoliciesPageInner() {
         </div>
       )}
 
-      <div className="flex gap-6 h-[calc(100vh-200px)]">
+      <div className="flex flex-col gap-6 lg:flex-row lg:h-[calc(100vh-200px)]">
         {/* Left sidebar — policy list + draft buttons */}
-        <div className="w-72 flex-shrink-0 flex flex-col gap-4">
+        <div className="flex flex-col gap-4 lg:w-72 lg:flex-shrink-0">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Your Policies</CardTitle>

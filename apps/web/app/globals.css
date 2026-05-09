@@ -4,83 +4,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * The project runs on Tailwind v3, whose opacity-modifier syntax (e.g.
+ * ``border-border/50``) requires every color CSS variable to hold raw
+ * channel values — i.e. ``0 0% 90%`` rather than a full ``oklch(...)``
+ * color. The Tailwind config wraps these in ``hsl(var(--token) /
+ * <alpha-value>)`` so the same variable serves both the base utility and
+ * every alpha-modified variant.
+ */
+
 @layer base {
   :root {
-    --background: oklch(0.985 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.965 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.965 0.002 260);
-    --muted-foreground: oklch(0.50 0 0);
-    --accent: oklch(0.96 0.002 260);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --destructive-foreground: 210 40% 98%;
-    --border: oklch(0.90 0 0);
-    --input: oklch(0.90 0 0);
-    --ring: oklch(0.708 0 0);
+    --background: 0 0% 99%;
+    --foreground: 0 0% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+    --primary: 0 0% 13%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 13%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 240 5% 96%;
+    --accent-foreground: 0 0% 13%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 71%;
     --radius: 0.5rem;
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.975 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.955 0.002 260);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.91 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --chart-1: 0 0% 87%;
+    --chart-2: 0 0% 56%;
+    --chart-3: 0 0% 44%;
+    --chart-4: 0 0% 37%;
+    --chart-5: 0 0% 27%;
+    --sidebar: 240 6% 97%;
+    --sidebar-foreground: 0 0% 9%;
+    --sidebar-primary: 0 0% 13%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 6% 91%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: 0 0% 71%;
   }
 
   .dark {
-    --background: oklch(0.13 0.005 260);
-    --foreground: oklch(0.93 0 0);
-    --card: oklch(0.17 0.005 260);
-    --card-foreground: oklch(0.93 0 0);
-    --popover: oklch(0.17 0.005 260);
-    --popover-foreground: oklch(0.93 0 0);
-    --primary: oklch(0.93 0 0);
-    --primary-foreground: oklch(0.13 0.005 260);
-    --secondary: oklch(0.22 0.005 260);
-    --secondary-foreground: oklch(0.93 0 0);
-    --muted: oklch(0.22 0.005 260);
-    --muted-foreground: oklch(0.65 0 0);
-    --accent: oklch(0.22 0.005 260);
-    --accent-foreground: oklch(0.93 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --destructive-foreground: 210 40% 98%;
-    --border: oklch(0.26 0.005 260);
-    --input: oklch(0.26 0.005 260);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.15 0.005 260);
-    --sidebar-foreground: oklch(0.93 0 0);
-    --sidebar-primary: oklch(0.93 0 0);
-    --sidebar-primary-foreground: oklch(0.15 0.005 260);
-    --sidebar-accent: oklch(0.22 0.005 260);
-    --sidebar-accent-foreground: oklch(0.93 0 0);
-    --sidebar-border: oklch(0.26 0.005 260);
-    --sidebar-ring: oklch(0.556 0 0);
+    --background: 240 5% 13%;
+    --foreground: 0 0% 93%;
+    --card: 240 5% 17%;
+    --card-foreground: 0 0% 93%;
+    --popover: 240 5% 17%;
+    --popover-foreground: 0 0% 93%;
+    --primary: 0 0% 93%;
+    --primary-foreground: 240 5% 13%;
+    --secondary: 240 5% 22%;
+    --secondary-foreground: 0 0% 93%;
+    --muted: 240 5% 22%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 240 5% 22%;
+    --accent-foreground: 0 0% 93%;
+    --destructive: 0 71% 70%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 26%;
+    --input: 240 5% 26%;
+    --ring: 0 0% 56%;
+    --chart-1: 0 0% 87%;
+    --chart-2: 0 0% 56%;
+    --chart-3: 0 0% 44%;
+    --chart-4: 0 0% 37%;
+    --chart-5: 0 0% 27%;
+    --sidebar: 240 5% 15%;
+    --sidebar-foreground: 0 0% 93%;
+    --sidebar-primary: 0 0% 93%;
+    --sidebar-primary-foreground: 240 5% 15%;
+    --sidebar-accent: 240 5% 22%;
+    --sidebar-accent-foreground: 0 0% 93%;
+    --sidebar-border: 240 5% 26%;
+    --sidebar-ring: 0 0% 56%;
   }
   .theme {
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);
   }
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
   body {
     @apply bg-background text-foreground antialiased;

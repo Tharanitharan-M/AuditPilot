@@ -12,12 +12,14 @@ import {
 } from "@/components/ui/breadcrumb"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const ROUTE_LABELS: Record<string, string> = {
   "/dashboard": "Overview",
   "/dashboard/integrations": "Integrations",
   "/dashboard/controls": "Controls",
   "/dashboard/policies": "Policies",
+  "/dashboard/questionnaire": "Questionnaire",
   "/dashboard/actions": "Actions",
   "/dashboard/chat": "Chat",
 }
@@ -55,8 +57,8 @@ export function PageHeader({ title, description, breadcrumbExtra }: PageHeaderPr
       <div className="flex items-center gap-2">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
+        <Breadcrumb className="min-w-0 flex-1">
+          <BreadcrumbList className="flex-nowrap overflow-hidden">
             {crumbs.map((crumb, i) => {
               const isLast = i === crumbs.length - 1
               return (
@@ -64,7 +66,7 @@ export function PageHeader({ title, description, breadcrumbExtra }: PageHeaderPr
                   {i > 0 && <BreadcrumbSeparator />}
                   <BreadcrumbItem>
                     {isLast ? (
-                      <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                      <BreadcrumbPage className="truncate">{crumb.label}</BreadcrumbPage>
                     ) : (
                       <BreadcrumbLink render={<Link href={crumb.href!} />}>
                         {crumb.label}
@@ -76,10 +78,13 @@ export function PageHeader({ title, description, breadcrumbExtra }: PageHeaderPr
             })}
           </BreadcrumbList>
         </Breadcrumb>
+        <ThemeToggle className="ml-auto" />
       </div>
 
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-lg font-semibold tracking-tight md:text-xl">
+          {title}
+        </h1>
         {description && (
           <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
         )}

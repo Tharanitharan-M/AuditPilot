@@ -64,7 +64,12 @@ from apps.api.observability.posthog import (
     make_observability_hook,
     shutdown_posthog,
 )
-from apps.api.routes import actions_router, connectors_router, policies_router
+from apps.api.routes import (
+    actions_router,
+    connectors_router,
+    policies_router,
+    questionnaire_router,
+)
 from apps.api.routes.policies import ResumeRequest, _upsert_policy_draft
 from apps.api.services.github_evidence import make_github_evidence_collector
 from apps.api.sse.ai_sdk_v6 import (
@@ -93,8 +98,17 @@ def _job_queue_factory(redis: RedisLike) -> JobQueue:
     return JobQueue(redis)
 
 
-async def _noop_questionnaire_fill(message: Any) -> None:
-    logger.info("job.handler.stub questionnaire.fill user_id=%s", message.user_id)
+def _build_questionnaire_fill_handler():
+    """Build the questionnaire.fill handler bound to the live DB pool + storage."""
+    from apps.api.db import get_pool_optional
+    from apps.api.services.object_storage import get_object_storage
+    from apps.api.services.questionnaire_worker import QuestionnaireFillHandler
+
+    storage = get_object_storage(get_settings())
+    return QuestionnaireFillHandler(
+        pool_factory=get_pool_optional,
+        storage=storage,
+    )
 
 
 async def _noop_policy_finalize(message: Any) -> None:
@@ -124,7 +138,7 @@ def _build_default_handlers() -> dict[JobType, Any]:
     """
 
     return {
-        JobType.QUESTIONNAIRE_FILL: _noop_questionnaire_fill,
+        JobType.QUESTIONNAIRE_FILL: _build_questionnaire_fill_handler(),
         JobType.POLICY_FINALIZE: _noop_policy_finalize,
         JobType.MOCK_AUDIT_RUN: _noop_mock_audit_run,
         JobType.DRIFT_SCAN: _noop_drift_scan,
@@ -306,6 +320,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(connectors_router)
 app.include_router(actions_router)
 app.include_router(policies_router)
+app.include_router(questionnaire_router)
 
 
 @app.middleware("http")

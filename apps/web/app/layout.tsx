@@ -13,6 +13,7 @@ import { Inter, Geist } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
 import "./globals.css"
 import { PostHogProvider } from "@/components/posthog-provider"
+import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils";
 
@@ -37,11 +38,18 @@ export default function RootLayout({
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
     >
-      <html lang="en" className={cn("font-sans", geist.variable)}>
+      <html lang="en" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
         <body className={inter.className}>
-          <PostHogProvider>
-            <TooltipProvider delay={300}>{children}</TooltipProvider>
-          </PostHogProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <PostHogProvider>
+              <TooltipProvider delay={300}>{children}</TooltipProvider>
+            </PostHogProvider>
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

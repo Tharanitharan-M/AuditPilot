@@ -19,7 +19,7 @@ export function SidebarUserMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-sidebar-accent">
+      <DropdownMenuTrigger className="flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 text-left text-sm hover:bg-sidebar-accent">
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
           {user?.imageUrl ? (
             <img
@@ -31,7 +31,7 @@ export function SidebarUserMenu() {
             initials
           )}
         </div>
-        <span className="truncate text-sm group-data-[collapsible=icon]:hidden">
+        <span className="min-w-0 flex-1 truncate text-sm group-data-[collapsible=icon]:hidden">
           {displayName}
         </span>
       </DropdownMenuTrigger>

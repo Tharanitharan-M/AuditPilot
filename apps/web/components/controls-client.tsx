@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { ShieldCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +9,56 @@ import { PageHeader } from "@/components/page-header"
 import { EmptyState } from "@/components/empty-state"
 import { ControlDetailPanel } from "@/components/control-detail-panel"
 import type { ControlAssessment, AssessmentStatus } from "@/components/control-posture-grid"
+
+// Same key ``useScanStream`` writes to. The Controls page hydrates from
+// localStorage instead of a server endpoint because control assessments
+// are produced by the SSE-streamed scan turn (``/api/chat``), not by a
+// CRUD endpoint. Reads on mount + listens to ``storage`` events so the
+// scan running in the Chat page updates this view live.
+const STORAGE_KEY_CONTROL_MAP = "auditpilot:controlMap"
+const STATUS_VALUES: ReadonlySet<AssessmentStatus> = new Set([
+  "passing",
+  "failing",
+  "partial",
+  "unknown",
+])
+
+function loadAssessmentsFromStorage(): ControlAssessment[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CONTROL_MAP)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((row): ControlAssessment[] => {
+      if (typeof row !== "object" || row === null) return []
+      const r = row as Record<string, unknown>
+      if (typeof r.tsc_id !== "string") return []
+      const rawStatus = typeof r.status === "string" ? r.status : "unknown"
+      const status: AssessmentStatus = STATUS_VALUES.has(
+        rawStatus as AssessmentStatus
+      )
+        ? (rawStatus as AssessmentStatus)
+        : "unknown"
+      return [
+        {
+          tsc_id: r.tsc_id,
+          status,
+          confidence: typeof r.confidence === "number" ? r.confidence : 0,
+          nist_800_53_refs: Array.isArray(r.nist_800_53_refs)
+            ? (r.nist_800_53_refs.filter((x) => typeof x === "string") as string[])
+            : [],
+          evidence_ids: Array.isArray(r.evidence_ids)
+            ? (r.evidence_ids.filter((x) => typeof x === "string") as string[])
+            : [],
+          rationale: typeof r.rationale === "string" ? r.rationale : null,
+        },
+      ]
+    })
+  } catch {
+    return []
+  }
+}
 
 const CONTROL_LABELS: Record<string, string> = {
   "CC1.1": "Control Environment",
@@ -94,10 +144,36 @@ interface ControlsClientProps {
   assessments?: ControlAssessment[]
 }
 
-export function ControlsClient({ assessments = [] }: ControlsClientProps) {
+export function ControlsClient({ assessments: assessmentsProp }: ControlsClientProps = {}) {
   const searchParams = useSearchParams()
   const statusFilter = searchParams?.get("status") ?? null
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [hydrated, setHydrated] = useState<ControlAssessment[]>(() =>
+    assessmentsProp && assessmentsProp.length > 0
+      ? assessmentsProp
+      : loadAssessmentsFromStorage()
+  )
+
+  // Re-hydrate when the scan running on the Chat page updates the
+  // ``auditpilot:controlMap`` localStorage entry. ``storage`` events fire
+  // on OTHER tabs/windows; ``focus`` covers same-tab updates after the
+  // user navigates back from /dashboard/chat.
+  useEffect(() => {
+    if (assessmentsProp && assessmentsProp.length > 0) return
+    const refresh = () => setHydrated(loadAssessmentsFromStorage())
+    window.addEventListener("storage", refresh)
+    window.addEventListener("focus", refresh)
+    return () => {
+      window.removeEventListener("storage", refresh)
+      window.removeEventListener("focus", refresh)
+    }
+  }, [assessmentsProp])
+
+  const assessments = useMemo(
+    () =>
+      assessmentsProp && assessmentsProp.length > 0 ? assessmentsProp : hydrated,
+    [assessmentsProp, hydrated]
+  )
 
   const filtered = useMemo(() => {
     if (!statusFilter) return assessments

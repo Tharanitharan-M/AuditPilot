@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useCallback } from "react"
+import { useEffect, useState, useCallback } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import { X, ExternalLink } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -62,22 +63,45 @@ export function ControlDetailPanel({ assessment, onClose }: ControlDetailPanelPr
     [onClose]
   )
 
+  // Render the dialog through a portal so the dashboard layout's CSS
+  // grid / SidebarProvider stacking context can never become its
+  // containing block. With the portal the backdrop and the panel sit at
+  // ``document.body`` and ``position: fixed`` is genuinely
+  // viewport-relative — the panel covers the page header (breadcrumb +
+  // theme toggle) instead of starting underneath it.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   useEffect(() => {
     document.addEventListener("keydown", handleEscape)
     return () => document.removeEventListener("keydown", handleEscape)
   }, [handleEscape])
 
-  return (
+  // Lock body scroll while the panel is open so the page behind cannot
+  // scroll under the backdrop.
+  useEffect(() => {
+    const original = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = original
+    }
+  }, [])
+
+  if (!mounted) return null
+
+  const dialog = (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/20"
+        className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[1px]"
         onClick={onClose}
         aria-hidden="true"
       />
       <div
         role="dialog"
         aria-label={`Details for ${tsc_id}`}
-        className="fixed right-0 top-0 z-50 flex h-full w-full max-w-[480px] flex-col border-l bg-background shadow-lg md:max-w-[480px]"
+        className="fixed right-0 top-0 z-[70] flex h-screen w-full max-w-[480px] flex-col border-l bg-background shadow-2xl md:max-w-[480px]"
         data-testid="control-detail-panel"
       >
         <div className="flex items-center justify-between border-b p-4">
@@ -192,4 +216,6 @@ export function ControlDetailPanel({ assessment, onClose }: ControlDetailPanelPr
       </div>
     </>
   )
+
+  return createPortal(dialog, document.body)
 }

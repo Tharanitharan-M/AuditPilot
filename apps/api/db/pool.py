@@ -78,6 +78,17 @@ async def init_pool(
         # connection negotiation has succeeded, so the first request
         # after boot does not race a half-warm pool (python-reviewer F1).
         open=False,
+        # Neon-friendly: the compute auto-suspends after ~5 min idle,
+        # which kills every pooled connection with ``AdminShutdown``.
+        # ``check=AsyncConnectionPool.check_connection`` runs a cheap
+        # ``SELECT 1`` before each checkout; on failure psycopg-pool
+        # discards the dead connection and opens a fresh one. Same
+        # benefit applies to a Postgres restart in dev / Cloud Run.
+        check=AsyncConnectionPool.check_connection,
+        # Recycle every 5 minutes so the pool never holds a connection
+        # long enough to age into a Neon idle-shutdown.
+        max_lifetime=300.0,
+        max_idle=120.0,
     )
     try:
         await pool.open(wait=True, timeout=acquire_timeout)
