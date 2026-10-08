@@ -39,7 +39,9 @@ jobs:
     env:
       DATABASE_URL: "postgres://postgres:postgres@localhost:5432/auditpilot_test"
       REDIS_URL: "redis://localhost:6379/0"
-      ENVIRONMENT: "test"
+      # Settings.environment only accepts development, staging or production
+      # (apps/api/config.py); "test" failed validation in the mock-audit tests.
+      ENVIRONMENT: "development"
 
     steps:
       - uses: actions/checkout@v4

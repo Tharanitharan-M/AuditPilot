@@ -13,6 +13,8 @@ from publicly available crosswalks.
 This package is part of the AuditPilot SOC 2 readiness reference architecture
 and is designed to be easy to fork for other control catalogs.
 
+Maintained by [Tharanitharan Muthuthirumaran](https://www.tharanitharan.com).
+
 ## Why NIST 800-53?
 
 - **Public domain.** NIST 800-53 is a U.S. federal government work and is in

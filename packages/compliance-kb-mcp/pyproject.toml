@@ -3,7 +3,7 @@ name = "compliance-kb-mcp"
 version = "0.2.0"
 description = "NIST SP 800-53 Rev 5 knowledge-base MCP server (324 controls) with SOC 2 TSC mappings and BM25 search."
 license = { text = "Apache-2.0" }
-authors = [{ name = "Tharanitharan M", email = "tharanimtharan@gmail.com" }]
+authors = [{ name = "Tharanitharan Muthuthirumaran", email = "tharanimtharan@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = [
@@ -43,6 +43,7 @@ compliance-kb-mcp = "compliance_kb_mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/Tharanitharan-M/auditpilot"
+Maintainer = "https://www.tharanitharan.com"
 Repository = "https://github.com/Tharanitharan-M/auditpilot"
 
 [build-system]

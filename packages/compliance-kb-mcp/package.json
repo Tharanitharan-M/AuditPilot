@@ -2,6 +2,10 @@
   "name": "@auditpilot/compliance-kb-mcp",
   "version": "0.2.0",
   "description": "NIST SP 800-53 Rev 5 knowledge-base MCP server (324 controls) with SOC 2 TSC mappings and BM25 search.",
+  "author": {
+    "name": "Tharanitharan Muthuthirumaran",
+    "url": "https://www.tharanitharan.com"
+  },
   "license": "Apache-2.0",
   "type": "module",
   "main": "index.js",
